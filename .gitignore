@@ -17,3 +17,8 @@ runs/
 
 # macOS
 .DS_Store
+
+# Working notes and assistant instructions. On disk, never in the repo -
+# these are how the project gets built, not part of the deliverable.
+CLAUDE.md
+LEARNING_NOTES.md

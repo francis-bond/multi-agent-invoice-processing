@@ -1,15 +1,15 @@
 {
-  "invoice_number": null,
-  "vendor": null,
-  "issue_date": null,
-  "due_date": null,
-  "currency": null,
+  "invoice_number": "1002",
+  "vendor": "Gadgets Co.",
+  "issue_date": "2026-01-30",
+  "due_date": "2026-01-30",
+  "currency": "USD",
   "line_items": [
     {
       "item": "GadgetX",
       "quantity": 20,
       "unit_price": 750.0,
-      "source_text": "  GadgetX  qty 20   @ $750 ea"
+      "source_text": "GadgetX  qty 20   @ $750 ea"
     }
   ],
   "subtotal": null,
