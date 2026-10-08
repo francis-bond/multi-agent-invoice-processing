@@ -5,7 +5,7 @@ distinguish "the extractor misread this" from "the invoice is genuinely wrong"
 when validation fails later.
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class LineItem(BaseModel):
@@ -18,15 +18,32 @@ class LineItem(BaseModel):
 
 
 class ExtractedInvoice(BaseModel):
-    invoice_number: str | None = Field(description="Invoice number as written, e.g. INV-1001")
-    vendor: str | None = Field(description="Vendor name as written, not corrected or expanded")
-    issue_date: str | None = Field(description="Date the invoice was issued, ISO format if parseable")
-    due_date: str | None = Field(description="Date payment is due, ISO format if parseable")
-    currency: str | None = Field(description="Currency code, e.g. USD or EUR. Null if not stated.")
+    """Note on empty strings.
+
+    The prompt asks for null on missing values and the schema types them as optional, but the model
+    returns "" anyway: an empty string satisfies `anyOf: [string, null]`, so nothing in the contract
+    forbids it. A prompt is a request and a schema constrains shape, not value. Only code run after
+    the response guarantees anything, so the coercion lives here.
+    """
+
+    invoice_number: str | None = Field(default=None, description="Invoice number as written, e.g. INV-1001")
+    vendor: str | None = Field(default=None, description="Vendor name as written, not corrected or expanded")
+    issue_date: str | None = Field(default=None, description="Date the invoice was issued, ISO format if parseable")
+    due_date: str | None = Field(default=None, description="Date payment is due, ISO format if parseable")
+    currency: str | None = Field(default=None, description="Currency code, e.g. USD or EUR. Null if not stated.")
     line_items: list[LineItem] = Field(description="Every line item on the invoice, in order")
-    subtotal: float | None = Field(description="Subtotal as stated on the invoice")
-    tax_amount: float | None = Field(description="Tax amount as stated on the invoice")
-    total: float | None = Field(description="Total amount as stated on the invoice")
-    total_source_text: str | None = Field(
+    subtotal: float | None = Field(default=None, description="Subtotal as stated on the invoice")
+    tax_amount: float | None = Field(default=None, description="Tax amount as stated on the invoice")
+    total: float | None = Field(default=None, description="Total amount as stated on the invoice")
+    total_source_text: str | None = Field(default=None, 
         description="The exact line the total was read from, copied verbatim"
     )
+
+    @field_validator("invoice_number", "vendor", "issue_date", "due_date", "currency",
+                     "total_source_text", mode="after")
+    @classmethod
+    def empty_string_is_missing(cls, v: str | None) -> str | None:
+        """Absent and empty are different things downstream. Normalise "" and "  " to None."""
+        if v is None:
+            return None
+        return v.strip() or None
