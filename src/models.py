@@ -18,7 +18,14 @@ class LineItem(BaseModel):
 
 
 class ExtractedInvoice(BaseModel):
-    """Note on empty strings.
+    """Note on required fields and empty strings.
+
+    Fields are deliberately REQUIRED even though their values may be null. Making them optional was
+    tried and made extraction measurably worse: on invoice_1002, where labels are abbreviated and
+    misspelled, the model simply omitted vendor, invoice number, and both dates rather than work for
+    them. Required forces an attempt; the validator below cleans up whatever comes back.
+
+    Note on empty strings.
 
     The prompt asks for null on missing values and the schema types them as optional, but the model
     returns "" anyway: an empty string satisfies `anyOf: [string, null]`, so nothing in the contract
@@ -26,16 +33,16 @@ class ExtractedInvoice(BaseModel):
     the response guarantees anything, so the coercion lives here.
     """
 
-    invoice_number: str | None = Field(default=None, description="Invoice number as written, e.g. INV-1001")
-    vendor: str | None = Field(default=None, description="Vendor name as written, not corrected or expanded")
-    issue_date: str | None = Field(default=None, description="Date the invoice was issued, ISO format if parseable")
-    due_date: str | None = Field(default=None, description="Date payment is due, ISO format if parseable")
-    currency: str | None = Field(default=None, description="Currency code, e.g. USD or EUR. Null if not stated.")
+    invoice_number: str | None = Field(description="Invoice number as written, e.g. INV-1001")
+    vendor: str | None = Field(description="Vendor name as written, not corrected or expanded")
+    issue_date: str | None = Field(description="Date the invoice was issued, ISO format if parseable")
+    due_date: str | None = Field(description="Date payment is due, ISO format if parseable")
+    currency: str | None = Field(description="Currency code, e.g. USD or EUR. Null if not stated.")
     line_items: list[LineItem] = Field(description="Every line item on the invoice, in order")
-    subtotal: float | None = Field(default=None, description="Subtotal as stated on the invoice")
-    tax_amount: float | None = Field(default=None, description="Tax amount as stated on the invoice")
-    total: float | None = Field(default=None, description="Total amount as stated on the invoice")
-    total_source_text: str | None = Field(default=None, 
+    subtotal: float | None = Field(description="Subtotal as stated on the invoice")
+    tax_amount: float | None = Field(description="Tax amount as stated on the invoice")
+    total: float | None = Field(description="Total amount as stated on the invoice")
+    total_source_text: str | None = Field(
         description="The exact line the total was read from, copied verbatim"
     )
 

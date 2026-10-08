@@ -1,0 +1,19 @@
+{
+  "invoice_number": null,
+  "vendor": null,
+  "issue_date": null,
+  "due_date": null,
+  "currency": null,
+  "line_items": [
+    {
+      "item": "GadgetX",
+      "quantity": 20,
+      "unit_price": 750.0,
+      "source_text": "  GadgetX  qty 20   @ $750 ea"
+    }
+  ],
+  "subtotal": null,
+  "tax_amount": null,
+  "total": 15000.0,
+  "total_source_text": "Amt: $15,000.00"
+}

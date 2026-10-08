@@ -1,0 +1,25 @@
+{
+  "invoice_number": null,
+  "vendor": null,
+  "issue_date": null,
+  "due_date": null,
+  "currency": null,
+  "line_items": [
+    {
+      "item": "WidgetA",
+      "quantity": 10,
+      "unit_price": 250.0,
+      "source_text": "  WidgetA    qty: 10    unit price: $250.00"
+    },
+    {
+      "item": "WidgetB",
+      "quantity": 5,
+      "unit_price": 500.0,
+      "source_text": "  WidgetB    qty: 5     unit price: $500.00"
+    }
+  ],
+  "subtotal": 5000.0,
+  "tax_amount": 0.0,
+  "total": 5000.0,
+  "total_source_text": "Total Amount: $5,000.00"
+}

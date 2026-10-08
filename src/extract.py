@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 
 from dotenv import load_dotenv
+from langchain_core.runnables import Runnable
 from langchain_xai import ChatXAI
 
 from models import ExtractedInvoice
@@ -47,14 +48,25 @@ Invoice document:
 ---"""
 
 
-def extract(document_text: str) -> ExtractedInvoice:
+def grok() -> Runnable:
+    """The real client. Separated so tests can substitute something else."""
     llm = ChatXAI(
         model=os.environ.get("XAI_MODEL", "grok-4-1-fast"),
         api_key=os.environ["XAI_API_KEY"],
         temperature=0,
     )
-    structured = llm.with_structured_output(ExtractedInvoice)
-    return structured.invoke(EXTRACTION_PROMPT.format(document=document_text))
+    return llm.with_structured_output(ExtractedInvoice)
+
+
+def extract(document_text: str, model: Runnable | None = None) -> ExtractedInvoice:
+    """Extract structured fields from invoice text.
+
+    `model` is the seam. Production passes nothing and gets Grok. Tests pass a stand-in so the
+    suite runs without an API key, without cost, and without the model's non-determinism making
+    assertions impossible.
+    """
+    model = model or grok()
+    return model.invoke(EXTRACTION_PROMPT.format(document=document_text))
 
 
 def main() -> None:
