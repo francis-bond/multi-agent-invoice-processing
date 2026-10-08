@@ -1,0 +1,19 @@
+# Secrets — never commit. The API key lives here and nowhere else.
+.env
+.env.*
+!.env.example
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Runtime artifacts only. data/invoices/ holds the provided test fixtures and IS committed -
+# a reviewer needs them to run anything.
+inventory.db
+*.sqlite
+runs/
+
+# macOS
+.DS_Store
