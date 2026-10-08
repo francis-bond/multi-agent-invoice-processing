@@ -25,11 +25,17 @@ uv run python src/extract.py data/invoices/invoice_1001.txt
 
 ## Design
 
-Decisions and reasoning: [`LEARNING_NOTES.md`](LEARNING_NOTES.md).
+**Every control decision is code. Every judgment call is an agent. Nothing in between.**
 
-The short version: **every control decision is code, every judgment call is an agent, nothing in
-between.** Approval thresholds, routing, and the pre-payment check are deterministic and auditable.
-Extraction, fuzzy matching, and approval reasoning are agents.
+Approval thresholds, routing, and the pre-payment check are deterministic and auditable — an auditor
+asking why an invoice was paid gets a rule and a line number, not a model's opinion. Extraction,
+fuzzy vendor matching, and approval reasoning are agents, because none of those reduce to a rule.
+
+Every extracted value carries the verbatim text it was read from. When validation fails, that is what
+distinguishes "the extractor misread this" from "the invoice is genuinely wrong" — the first is worth
+retrying, the second never will be.
+
+Full rationale, including rejected alternatives, will land in `DECISIONS.md` as the system is built.
 
 ## Test data
 
