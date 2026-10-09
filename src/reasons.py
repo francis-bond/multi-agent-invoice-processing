@@ -262,10 +262,14 @@ def _and_others(total: int) -> str:
 
 
 def _first_clause(text: str) -> str:
-    """Trim a long reason to its first sentence so it fits on one line."""
+    """Trim a long reason to its first sentence so it fits on one line.
+
+    Sentences only. This used to break on a semicolon too, which threw away the useful half
+    of several messages: a document error states the problem, a semicolon, then what to do
+    about it - "scan.png is an image; OCR is not configured" became "scan.png is an image",
+    dropping exactly the part the reader needs. The length cap is enough to stop rambling.
+    """
     text = " ".join(text.split())
-    for stop in (". ", "; "):
-        if stop in text:
-            text = text.split(stop)[0]
-            break
-    return text if len(text) <= 120 else text[:117] + "..."
+    if ". " in text:
+        text = text.split(". ")[0]
+    return text if len(text) <= 150 else text[:147] + "..."

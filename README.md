@@ -26,6 +26,21 @@ uv run python src/dashboard.py     # audit view of every run, opens in a browser
 uv run python src/logs.py          # the same from the terminal
 ```
 
+## Tests
+
+```bash
+uv run python -m pytest tests/ -q
+```
+
+No test calls a model and no test touches `runs.db`, `inventory.db` or `ledger.db` beyond the
+seeded catalogue. The agent functions take an injectable model and the graph nodes are stubbed,
+so the suite is fast, free and independent of whatever payment history is on disk.
+
+What is asserted is never a model's judgment — that is not a testable property. It is
+everything the surrounding code does with the judgment: which approval lane an invoice takes,
+whether an objection is grounded well enough to force a revision, when the critic loop stops,
+and what survives into the final state.
+
 ## Design
 
 **Every control decision is code. Every judgment call is an agent. Nothing in between.**

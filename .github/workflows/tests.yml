@@ -1,0 +1,26 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --all-extras --dev
+
+      # No API key is set, deliberately. The suite stubs every model call, so a run that
+      # needs one is a test reaching for the network and should fail here rather than
+      # quietly costing money on someone's key.
+      - name: Run tests
+        run: uv run python -m pytest tests/ -q
