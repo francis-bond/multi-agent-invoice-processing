@@ -124,10 +124,17 @@ def build() -> Path:
             f"{esc(f['detail'])}</div>" for f in flags
         ) or "<div class='dim'>No findings.</div>"
 
-        nodes = " &rarr; ".join(
-            esc(s["node"]) for s in
-            conn.execute("SELECT node FROM steps WHERE run_id=? ORDER BY seq", (rid,))
-        )
+        # Where a run stopped, shown only when it did not finish. The full node path is
+        # identical on every completed run, so as a column it was decoration; `logs.py` is
+        # the place to inspect graph topology. What a half-finished run reached is the whole
+        # story of that run, though, so keep that case.
+        stopped = ""
+        if r["outcome"] is None:
+            reached = [row[0] for row in conn.execute(
+                "SELECT node FROM steps WHERE run_id=? ORDER BY seq", (rid,))]
+            last = reached[-1] if reached else "nothing"
+            stopped = (f"<div class='block'><h4>Stopped after</h4>{esc(last)} "
+                       f"<span class='dim'>({len(reached)} steps recorded)</span></div>")
 
         reason = ""
         if r["reasoning"]:
@@ -156,8 +163,7 @@ def build() -> Path:
       run <code>{esc(rid)}</code> &nbsp;&middot;&nbsp;
       scrutiny: {'yes' if r['needs_scrutiny'] else 'no'}</div>
   <div class="block"><h4>Findings ({len(flags)})</h4>{fhtml}</div>
-  {reason}{blocked}{err}
-  <div class="block"><h4>Nodes</h4><span class="dim">{nodes}</span></div>
+  {reason}{blocked}{err}{stopped}
 </td></tr>""")
 
     body = "".join(rows) or "<tr><td colspan='8' class='empty'>No runs recorded yet.</td></tr>"
