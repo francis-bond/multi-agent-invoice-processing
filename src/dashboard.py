@@ -119,7 +119,7 @@ def build() -> Path:
         flags = [dict(f) for f in
                  conn.execute("SELECT * FROM flags WHERE run_id=?", (rid,)).fetchall()]
         why = headline(r["outcome"], r["blocked_reason"], r["processing_error"], flags, r["decision"],
-                       r["escalation_reason"])
+                       r["escalation_reason"], r["critique_rounds"])
         fhtml = "".join(
             f"<div class='flag sev-{esc(f['severity'])}'><code>{esc(f['code'])}</code>"
             f"{esc(f['detail'])}</div>" for f in flags

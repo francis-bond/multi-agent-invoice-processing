@@ -96,6 +96,13 @@ def category(
     return "paid" if outcome == "paid" else "denied"
 
 
+# Findings about how the system behaved, not about the invoice. They belong in the record and
+# in the needs-a-person signal, but never as the headline reason an invoice was not paid: "the
+# critic raised an objection it could not evidence" does not tell anyone why a vendor was
+# refused.
+SYSTEM_FLAGS = {"critique_unsupported", "critic_unavailable"}
+
+
 def label(code: str) -> str:
     """Human phrase for a flag code. Unknown codes degrade to a readable form of the code."""
     return LABELS.get(code, code.replace("_", " ").capitalize())
@@ -112,6 +119,7 @@ def headline(
     flags: list[dict] | None = None,
     decision: str | None = None,
     escalation_reason: str | None = None,
+    critique_rounds: int | None = None,
 ) -> str:
     """One line saying why this run ended the way it did.
 
@@ -124,8 +132,9 @@ def headline(
     if outcome == "escalated" and escalation_reason:
         return f"Unsettled after review: {_first_clause(escalation_reason)}"
 
-    errors = [f for f in (flags or []) if f.get("severity") == "error"]
-    warnings = [f for f in (flags or []) if f.get("severity") != "error"]
+    about_invoice = [f for f in (flags or []) if f["code"] not in SYSTEM_FLAGS]
+    errors = [f for f in about_invoice if f.get("severity") == "error"]
+    warnings = [f for f in about_invoice if f.get("severity") != "error"]
     candidates = errors or warnings
 
     # If anything put this run in the human work queue, lead with that, even when a
@@ -136,26 +145,37 @@ def headline(
     worst = min(queued or candidates, key=lambda f: rank(f["code"]), default=None)
 
     if outcome == "paid":
+        # A payment the critic argued for is the most informative row in the table. Saying
+        # "paid with a warning: the totals do not reconcile" would be true of the first
+        # decision and wrong about the outcome: the critic resolved that mismatch by finding
+        # what the schema had dropped.
+        if critique_rounds:
+            turns = "revision" if critique_rounds == 1 else "revisions"
+            return f"Paid after the critic forced {critique_rounds} {turns}"
         if worst:
             return f"Paid with a warning: {label(worst['code'])}"
         return "Clean: no findings"
 
-    extra = _and_others(len(flags or []))
-
-    if blocked_reason:
-        # Worth flagging loudly when the deterministic gate refused something the review
-        # agent had approved: that is code catching a judgment call, and an auditor on a
-        # duplicate-payment question needs to see it without opening the run.
-        overrode = " - gate overrode the approval" if decision == "approve" else ""
-        if worst and rank(worst["code"]) < len(PRIORITY):
-            return f"{label(worst['code'])}{extra}{overrode}"
-        return f"{_first_clause(blocked_reason)}{overrode}"
+    extra = _and_others(len(about_invoice))
 
     if worst:
+        if blocked_reason and decision == "approve":
+            # Code catching a judgment call. An auditor looking into a payment that should
+            # not have happened needs to see this without opening the run.
+            return f"{label(worst['code'])}{extra} - gate overrode the approval"
         return f"{label(worst['code'])}{extra}"
+
+    # The gate's own wording, but only when it says something. On a rejected invoice it reads
+    # "not approved (decision was 'reject')", which restates the outcome and explains nothing.
+    if blocked_reason and decision == "approve":
+        return f"Gate overrode the approval: {_first_clause(blocked_reason)}"
+
 
     if outcome is None:
         return "Run did not finish - no outcome recorded"
+    if critique_rounds:
+        turns = "revision" if critique_rounds == 1 else "revisions"
+        return f"Denied, upheld through {critique_rounds} critic {turns}"
     return "Denied by approval review"
 
 
