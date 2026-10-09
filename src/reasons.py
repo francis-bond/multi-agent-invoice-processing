@@ -21,6 +21,7 @@ LABELS: dict[str, str] = {
     "item_out_of_stock": "Item out of stock",
     "quantity_exceeds_stock": "Quantity ordered exceeds stock on hand",
     "item_on_multiple_lines": "Same item billed on multiple lines",
+    "item_matched_loosely": "Item matched only after ignoring a qualifier on its name",
     # required fields
     "missing_vendor": "Missing required field: vendor",
     "missing_invoice_number": "Missing required field: invoice number",
@@ -49,6 +50,7 @@ PRIORITY = [
     "item_out_of_stock",
     "item_not_found",
     "item_on_multiple_lines",
+    "item_matched_loosely",
     "no_line_items",
     "missing_vendor",
     "missing_invoice_number",

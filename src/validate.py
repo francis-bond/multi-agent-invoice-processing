@@ -8,13 +8,18 @@ five problems, not stop at the first one - the person reading the log wants the 
 """
 
 from models import ExtractedInvoice
-from inventory import lookup
+from inventory import canonical, resolve, strip_annotation
 from ledger import prior_by_content, prior_by_number
 from state import Flag
 
 # Money comparisons need a tolerance. Floats do not reconcile exactly, and invoices are
 # rounded to cents anyway.
 CENT = 0.01
+
+
+def strip_annotation_diff(raw: str) -> str:
+    """The part of a line item's name that had to be ignored to match the catalogue."""
+    return raw[len(strip_annotation(raw)):].strip()
 
 
 def _existence_and_stock(inv: ExtractedInvoice) -> list[Flag]:
@@ -25,45 +30,83 @@ def _existence_and_stock(inv: ExtractedInvoice) -> list[Flag]:
     they ask for 22. Checking lines individually misses every stock violation on an invoice
     that splits its order across lines, which is both a common billing pattern and an obvious
     way to slip an oversized order past a naive check.
+
+    Lines are grouped by resolved catalogue identity rather than by the vendor's spelling,
+    so "WidgetA" and "Widget A" on one invoice add up. Grouping on the raw string would let
+    the same oversized order through simply by varying the spacing between lines.
     """
     flags: list[Flag] = []
 
-    requested: dict[str, int] = {}
-    line_count: dict[str, int] = {}
+    groups: dict[str, dict] = {}
     for li in inv.line_items:
-        requested[li.item] = requested.get(li.item, 0) + li.quantity
-        line_count[li.item] = line_count.get(li.item, 0) + 1
+        match = resolve(li.item)
+        # Unmatched items still need a stable key, so fall back to their own canonical form:
+        # two lines of "Widget C" and "widgetc" are one unknown product, not two.
+        key = match.item or canonical(li.item)
+        g = groups.setdefault(
+            key, {"match": match, "qty": 0, "lines": 0, "written": [], "loose": []})
+        g["qty"] += li.quantity
+        g["lines"] += 1
+        if li.item not in g["written"]:
+            g["written"].append(li.item)
+        # Looseness is a property of the line, not the group. invoice_1010 lists both
+        # "WidgetA" and "WidgetA (rush order)": keeping only the first line's result would
+        # throw away the fact that the second one needed a qualifier ignored.
+        if match.is_loose and li.item not in g["loose"]:
+            g["loose"].append(li.item)
+        # Prefer the cleanest match in the group for the stock figure itself.
+        if not g["match"].found or (g["match"].is_loose and not match.is_loose):
+            g["match"] = match
 
-    for item, qty in requested.items():
-        stock = lookup(item)
-        if stock is None:
+    for g in groups.values():
+        match, qty, lines = g["match"], g["qty"], g["lines"]
+        # Always report the invoice's own wording. The audit trail has to show what the
+        # vendor actually wrote, not what we matched it to.
+        written = " / ".join(repr(w) for w in g["written"])
+        name = match.item or g["written"][0]
+
+        if not match.found:
             flags.append(Flag(
                 code="item_not_found",
-                detail=f"{item!r} is not in inventory",
+                detail=f"{written} is not in inventory",
                 severity="error",
             ))
-        elif stock == 0:
+            continue
+
+        for raw in g["loose"]:
+            # Matching needed part of the name thrown away, and the discarded part can carry
+            # a price implication - a rush order is not necessarily the same deal as a stock
+            # one. Match it, pay attention to it, do not silently treat it as clean.
+            discarded = strip_annotation_diff(raw)
+            flags.append(Flag(
+                code="item_matched_loosely",
+                detail=(f"{raw!r} matched catalogue item {name!r} after ignoring "
+                        f"{discarded!r}; confirm the qualifier carries no price change"),
+                severity="warning",
+            ))
+
+        if match.stock == 0:
             flags.append(Flag(
                 code="item_out_of_stock",
-                detail=f"{item!r} is stocked but has zero on hand",
+                detail=f"{name!r} is stocked but has zero on hand",
                 severity="error",
             ))
-        elif qty > stock:
-            across = (f" across {line_count[item]} lines" if line_count[item] > 1 else "")
+        elif qty > match.stock:
+            across = f" across {lines} lines" if lines > 1 else ""
             flags.append(Flag(
                 code="quantity_exceeds_stock",
-                detail=f"{item}: requested {qty}{across}, available {stock}",
+                detail=f"{name}: requested {qty}{across}, available {match.stock}",
                 severity="error",
             ))
 
-    # Not an error on its own, but the approval agent should know. Splitting one item over
-    # several lines is normal for discounts and expedites, and is also how an oversized
-    # order gets made to look small.
-    for item, n in line_count.items():
-        if n > 1:
+        # Not an error on its own, but the approval agent should know. Splitting one item
+        # over several lines is normal for discounts and expedites, and is also how an
+        # oversized order gets made to look small.
+        if lines > 1:
+            spellings = f" (as {written})" if len(g["written"]) > 1 else ""
             flags.append(Flag(
                 code="item_on_multiple_lines",
-                detail=f"{item} appears on {n} separate lines totalling {requested[item]}",
+                detail=f"{name} appears on {lines} separate lines{spellings} totalling {qty}",
                 severity="warning",
             ))
 
