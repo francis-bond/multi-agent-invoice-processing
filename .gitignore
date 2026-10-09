@@ -22,3 +22,4 @@ runs/
 # these are how the project gets built, not part of the deliverable.
 CLAUDE.md
 LEARNING_NOTES.md
+runs.db

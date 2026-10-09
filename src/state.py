@@ -41,6 +41,7 @@ class InvoiceState(TypedDict, total=False):
     # --- evidence about extraction -------------------------------------------
     extraction_attempts: int
     extraction_feedback: str | None  # the specific complaint carried into a retry
+    prompts: dict                    # node name -> prompt sent. For the run log, not for logic.
 
     # --- what each node decided ----------------------------------------------
     flags: Annotated[list[Flag], lambda a, b: a + b]   # accumulates across nodes

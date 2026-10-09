@@ -63,7 +63,7 @@ def grok() -> Runnable:
     return llm.with_structured_output(ExtractedInvoice)
 
 
-def extract(document_text: str, model: Runnable | None = None) -> ExtractedInvoice:
+def extract(document_text: str, model: Runnable | None = None) -> tuple[ExtractedInvoice, str]:
     """Extract structured fields from invoice text.
 
     `model` is the seam. Production passes nothing and gets Grok. Tests pass a stand-in so the
@@ -71,7 +71,8 @@ def extract(document_text: str, model: Runnable | None = None) -> ExtractedInvoi
     assertions impossible.
     """
     model = model or grok()
-    return model.invoke(EXTRACTION_PROMPT.format(document=document_text))
+    prompt = EXTRACTION_PROMPT.format(document=document_text)
+    return model.invoke(prompt), prompt
 
 
 def main() -> None:
@@ -80,7 +81,7 @@ def main() -> None:
     args = parser.parse_args()
 
     document_text = args.invoice_path.read_text()
-    result = extract(document_text)
+    result, _ = extract(document_text)
     print(result.model_dump_json(indent=2))
 
 

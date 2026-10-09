@@ -88,7 +88,7 @@ def approve(
     flags: list[Flag],
     scrutiny: bool,
     model: Runnable | None = None,
-) -> ApprovalDecision:
+) -> tuple[ApprovalDecision, str]:
     model = model or _llm()
     items = "\n".join(
         f"    {li.item} x{li.quantity} @ {li.unit_price}" for li in inv.line_items
@@ -101,7 +101,7 @@ def approve(
         if scrutiny else
         "This invoice cleared the routing rules without flags."
     )
-    return model.invoke(APPROVAL_PROMPT.format(
+    prompt = APPROVAL_PROMPT.format(
         scrutiny_note=note,
         vendor=inv.vendor or "(not stated)",
         number=inv.invoice_number or "(not stated)",
@@ -111,4 +111,5 @@ def approve(
         total=inv.total.value if inv.total.was_stated else "(not stated)",
         items=items,
         flags=findings,
-    ))
+    )
+    return model.invoke(prompt), prompt
