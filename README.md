@@ -173,30 +173,29 @@ tests tell you what you forgot to wire up.
 
 ```mermaid
 flowchart LR
-    ingest["<b>ingest</b><br/>file to text"]
-    prescan["<b>prescan</b><br/>what else claims<br/>this invoice?"]
-    extract["<b>extract</b> · AGENT<br/>fields, each cited"]
-    cite{"<b>citations</b><br/>really in the<br/>document?"}
-    validate["<b>validate</b><br/>stock, prices, suppliers,<br/>arithmetic, duplicates"]
-    approve["<b>approve</b> · AGENT<br/>should this be paid?"]
-    critic["<b>critic</b> · AGENT<br/>audit it, and look up<br/>what it cannot see"]
-    ground{"<b>ground</b><br/>evidence real, and<br/>from the right source?"}
-    gate{"<b>gate</b><br/>hard rules, before<br/>money moves"}
+    ingest["<b>ingest</b>"]
+    prescan["<b>prescan</b>"]
+    extract["<b>extract</b>"]
+    cite{"<b>citations</b>"}
+    validate["<b>validate</b>"]
+    approve["<b>approve</b>"]
+    critic["<b>critic</b>"]
+    ground{"<b>evidence</b>"}
+    gate{"<b>gate</b>"}
     pay(["pay"])
     deny(["deny"])
-    human(["a person decides"])
+    human(["a person"])
 
     ingest --> prescan --> extract --> cite
-    cite -->|"a citation is<br/>not in the document"| extract
-    cite -->|"still unverifiable"| human
-    cite -->|"every value<br/>traces back"| validate
-    validate -->|"route: amount<br/>or any flag"| approve
-    approve -->|"clean and<br/>under threshold"| gate
-    approve -->|"needs scrutiny"| critic
-    critic --> ground
-    ground -->|"nothing stands"| gate
-    ground -->|"objection stands"| approve
-    ground -->|"cannot settle it"| human
+    cite -->|"not in the document"| extract
+    cite -->|"still unverified"| human
+    cite -->|"traces back"| validate
+    validate -->|"any flag, or<br/>over the threshold"| critic
+    validate -->|"clean"| approve
+    critic --> approve --> ground
+    ground -->|"holds up"| gate
+    ground -->|"objection stands"| critic
+    ground -->|"cannot settle"| human
     gate --> pay
     gate --> deny
 
@@ -207,6 +206,16 @@ flowchart LR
     class extract,approve,critic agent
     class pay,deny,human terminal
 ```
+
+Blue is code, amber is an agent. Two loops: extraction retries when a value cannot be traced to
+the document, and approval is revised when the critic's objection holds up. Both have a limit,
+and both escalate to a person rather than guessing.
+
+- **ingest** reads any of the supported formats to text; **prescan** checks what else in the
+  inbox claims the same invoice number
+- **validate** covers stock, agreed prices, approved suppliers, arithmetic, currency and
+  duplicates, and decides the approval lane
+- **gate** refuses anything our own records contradict, whatever the approval said
 
 Blue is code, amber is an agent. Routing is folded into the edge out of `validate`: it is one
 line deciding which lane, not a stage of its own.
