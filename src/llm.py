@@ -29,6 +29,23 @@ DEFAULT_MODEL = "grok-4-1-fast"
 MAX_ATTEMPTS = int(os.environ.get("LLM_MAX_ATTEMPTS", "3"))
 
 
+def chat(temperature: float = 0, tools: list | None = None) -> Runnable:
+    """A model for a tool-calling loop, where the answer is not yet structured.
+
+    Tools are bound here rather than by the caller because the retry wrapper has to go on
+    last: `with_retry` returns a RunnableRetry, which has no `bind_tools`, so binding
+    afterwards fails at runtime with nothing to suggest the order was the problem.
+    """
+    llm = ChatXAI(
+        model=os.environ.get("XAI_MODEL", DEFAULT_MODEL),
+        api_key=os.environ["XAI_API_KEY"],
+        temperature=temperature,
+    )
+    if tools:
+        llm = llm.bind_tools(tools)
+    return llm.with_retry(stop_after_attempt=MAX_ATTEMPTS)
+
+
 def client(schema: type, temperature: float = 0) -> Runnable:
     """A model bound to a Pydantic schema, with retries on transient failure.
 

@@ -39,6 +39,7 @@ def stub(monkeypatch):
             self.critiques = [Critique(verified=["total checks out"], objections=[])]
             self.approve_calls = []
             self.waivers_seen = []
+            self.lookups = []
             self.critic_calls = 0
             self.paid = []
 
@@ -60,10 +61,10 @@ def stub(monkeypatch):
 
     monkeypatch.setattr(graph, "approve", fake_approve)
 
-    def fake_critique(inv, flags, decision, reasoning, document, model=None):
+    def fake_critique(inv, flags, decision, reasoning, document, model=None, chat_model=None):
         c = s._critique(s.critic_calls)
         s.critic_calls += 1
-        return c, "critic prompt"
+        return c, "critic prompt", s.lookups
 
     monkeypatch.setattr(graph, "critique", fake_critique)
     monkeypatch.setattr(graph, "mock_payment",

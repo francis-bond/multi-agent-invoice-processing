@@ -17,6 +17,12 @@ from pathlib import Path
 from models import ExtractedInvoice
 from policy import HOME_CURRENCY
 
+
+# Database paths resolve when a function is CALLED, not when it is defined. A default of
+# `db_path: Path = DB_PATH` binds the module global once at import, so pointing DB_PATH at a
+# temporary file afterwards has no effect and the function quietly keeps using the real
+# database. That cost two debugging sessions: a lookup that returned "no payment recorded"
+# against a ledger that plainly had one, and a test that passed for the wrong reason.
 DB_PATH = Path(__file__).parent.parent / "ledger.db"
 
 SCHEMA = """
@@ -38,7 +44,8 @@ CREATE INDEX IF NOT EXISTS idx_pay_fingerprint ON payments(fingerprint);
 """
 
 
-def _connect(db_path: Path = DB_PATH) -> sqlite3.Connection:
+def _connect(db_path: Path | None = None) -> sqlite3.Connection:
+    db_path = db_path or DB_PATH
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
@@ -68,7 +75,8 @@ def fingerprint(inv: ExtractedInvoice) -> str:
     return hashlib.sha256(basis.encode()).hexdigest()[:16]
 
 
-def prior_by_number(inv: ExtractedInvoice, db_path: Path = DB_PATH) -> list[sqlite3.Row]:
+def prior_by_number(inv: ExtractedInvoice, db_path: Path | None = None) -> list[sqlite3.Row]:
+    db_path = db_path or DB_PATH
     if not inv.invoice_number:
         return []
     conn = _connect(db_path)
@@ -80,8 +88,28 @@ def prior_by_number(inv: ExtractedInvoice, db_path: Path = DB_PATH) -> list[sqli
     return rows
 
 
-def prior_by_content(inv: ExtractedInvoice, db_path: Path = DB_PATH) -> list[sqlite3.Row]:
+def payments_for_number(invoice_number: str, db_path: Path | None = None) -> list[sqlite3.Row]:
+    """Every payment recorded against an invoice number, whoever it went to.
+
+    Deliberately a different question from `prior_by_number`, which asks whether THIS invoice -
+    this number from this vendor - was already paid, and is the duplicate check. This one asks
+    what the number alone has against it, which is what someone auditing a finding wants: if
+    the same number was paid to a different vendor, that is worth seeing rather than filtering
+    out.
+    """
+    db_path = db_path or DB_PATH
+    if not invoice_number:
+        return []
+    conn = _connect(db_path)
+    rows = conn.execute("SELECT * FROM payments WHERE invoice_number=? ORDER BY paid_at",
+                        (invoice_number,)).fetchall()
+    conn.close()
+    return rows
+
+
+def prior_by_content(inv: ExtractedInvoice, db_path: Path | None = None) -> list[sqlite3.Row]:
     """Same content, different number."""
+    db_path = db_path or DB_PATH
     conn = _connect(db_path)
     rows = conn.execute(
         "SELECT * FROM payments WHERE fingerprint=? AND invoice_number IS NOT ?",
@@ -91,7 +119,8 @@ def prior_by_content(inv: ExtractedInvoice, db_path: Path = DB_PATH) -> list[sql
     return rows
 
 
-def record(run_id: str, inv: ExtractedInvoice, db_path: Path = DB_PATH) -> None:
+def record(run_id: str, inv: ExtractedInvoice, db_path: Path | None = None) -> None:
+    db_path = db_path or DB_PATH
     conn = _connect(db_path)
     # Columns named rather than positional. A ledger migrated with ALTER TABLE has its new
     # column at the end while a freshly created one has it mid-table, so a positional insert

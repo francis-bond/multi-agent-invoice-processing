@@ -219,12 +219,19 @@ worth retrying, the second never will be.
 evidence and asked whether it agrees will agree. This one reads the source, so it catches the
 class of error the approver is structurally blind to: anything the schema failed to model.
 
+**The critic can look things up.** It has three read-only lookups — what we have already paid
+against an invoice number, an item's stock and agreed price, and whether a vendor is approved.
+They exist because of a specific failure: the critic argued a duplicate payment was impossible
+on the strength of the document saying nothing about one, since the ledger was invisible to it.
+Now it can ask. **Tools give the agent evidence, not authority** — nothing they reach writes
+anything, and every conclusion is still grounded by code and still subject to the gate.
+
 **Code decides whether an objection counts**, on two independent questions. Every objection
 must quote the document, and the quote is checked against it, so a confidently-worded invention
-cannot force a revision. And every finding is labelled with where its facts came from: a
-finding read off the document is the critic's to argue with, while one looked up in our own
-records — payment history, catalogue, supplier list — is not, because none of that is in the
-invoice and the document's silence about it proves nothing.
+cannot force a revision. And the evidence has to come from the source that answers the
+question: a finding read off the document must be argued from the document, and one taken from
+our own records must be argued from the lookup that bears on it — which the critic has to have
+actually called. A tool that exists and was not called is no better than no tool at all.
 
 That second rule exists because of a real near miss. Validation flagged an already-paid
 invoice, the critic argued the duplicate was impossible since no duplicate notice appeared in

@@ -9,6 +9,12 @@ import sqlite3
 from pathlib import Path
 from typing import NamedTuple
 
+
+# Database paths resolve when a function is CALLED, not when it is defined. A default of
+# `db_path: Path = DB_PATH` binds the module global once at import, so pointing DB_PATH at a
+# temporary file afterwards has no effect and the function quietly keeps using the real
+# database. That cost two debugging sessions: a lookup that returned "no payment recorded"
+# against a ledger that plainly had one, and a test that passed for the wrong reason.
 DB_PATH = Path(__file__).parent.parent / "inventory.db"
 
 # Item, stock on hand, agreed unit price. The price is what makes an overcharge detectable:
@@ -44,7 +50,8 @@ VENDORS = [
 ]
 
 
-def setup(db_path: Path = DB_PATH) -> None:
+def setup(db_path: Path | None = None) -> None:
+    db_path = db_path or DB_PATH
     conn = sqlite3.connect(db_path)
     conn.execute("""CREATE TABLE IF NOT EXISTS inventory (
                         item TEXT PRIMARY KEY, stock INTEGER, unit_price REAL)""")
@@ -104,7 +111,7 @@ class Match(NamedTuple):
         return self.how == "annotation"
 
 
-def resolve(item: str, db_path: Path = DB_PATH) -> Match:
+def resolve(item: str, db_path: Path | None = None) -> Match:
     """Find an invoice line item in the catalogue, widening the match in careful stages.
 
     Exact first, then ignoring case and separators, then ignoring a trailing annotation.
@@ -114,6 +121,7 @@ def resolve(item: str, db_path: Path = DB_PATH) -> Match:
     The catalogue is read whole and keyed in memory. That is fine at this size; a real
     catalogue would carry an indexed canonical column so the database does the matching.
     """
+    db_path = db_path or DB_PATH
     conn = sqlite3.connect(db_path)
     rows = conn.execute("SELECT item, stock, unit_price FROM inventory").fetchall()
     conn.close()
@@ -137,12 +145,13 @@ def resolve(item: str, db_path: Path = DB_PATH) -> Match:
     return Match(None, None, "unmatched")
 
 
-def vendor_is_approved(name: str | None, db_path: Path = DB_PATH) -> bool:
+def vendor_is_approved(name: str | None, db_path: Path | None = None) -> bool:
     """Is this name on the approved supplier list?
 
     Matched the same way item names are: ignoring case and punctuation, so "Widgets Inc." and
     "Widgets Inc" are one supplier rather than one approved and one unknown.
     """
+    db_path = db_path or DB_PATH
     if not name or not name.strip():
         return False
     conn = sqlite3.connect(db_path)
@@ -151,7 +160,7 @@ def vendor_is_approved(name: str | None, db_path: Path = DB_PATH) -> bool:
     return canonical(name) in {canonical(v) for v in rows}
 
 
-def ensure(db_path: Path = DB_PATH) -> None:
+def ensure(db_path: Path | None = None) -> None:
     """Seed the catalogue if it is not there yet.
 
     The database is gitignored, so a fresh clone has none and the first lookup would fail
@@ -159,6 +168,7 @@ def ensure(db_path: Path = DB_PATH) -> None:
     demand loses nothing and means the documented command works on a clean checkout. Existing
     stock levels are left alone.
     """
+    db_path = db_path or DB_PATH
     conn = sqlite3.connect(db_path)
     try:
         exists = conn.execute(
@@ -178,13 +188,14 @@ def ensure(db_path: Path = DB_PATH) -> None:
         setup(db_path)
 
 
-def lookup(item: str, db_path: Path = DB_PATH) -> int | None:
+def lookup(item: str, db_path: Path | None = None) -> int | None:
     """Stock level for an item, or None if it is not in the catalogue at all.
 
     None and 0 are different answers: "we do not stock this" versus "we stock it and have
     none". Those call for different responses, so the return type has to carry the
     distinction.
     """
+    db_path = db_path or DB_PATH
     return resolve(item, db_path).stock
 
 

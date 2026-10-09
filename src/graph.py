@@ -108,7 +108,7 @@ def critic_node(state: InvoiceState) -> dict:
     if state.get("processing_error") or not state.get("invoice"):
         return {}
     try:
-        crit, prompt = critique(
+        crit, prompt, performed = critique(
             state["invoice"],
             state.get("flags", []),
             state.get("approval_decision", "reject"),
@@ -120,7 +120,7 @@ def critic_node(state: InvoiceState) -> dict:
         # stands and the gate still applies. Record it and carry on.
         return {"flags": [Flag(code="critic_unavailable", detail=str(exc), severity="warning")]}
 
-    supported, unsupported = ground(crit, state["raw_text"])
+    supported, unsupported = ground(crit, state["raw_text"], performed)
     round_no = state.get("critique_rounds", 0)
 
     record = {
@@ -128,6 +128,7 @@ def critic_node(state: InvoiceState) -> dict:
         "reviewed_decision": state.get("approval_decision"),
         "reviewed_reasoning": state.get("approval_reasoning"),
         "verified": crit.verified,
+        "lookups": performed,
         "grounded": [o.model_dump() for o in supported],
         "discarded": [o.model_dump() for o in unsupported],
     }
