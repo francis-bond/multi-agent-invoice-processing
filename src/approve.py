@@ -47,6 +47,12 @@ real money leaving the company for goods that may not exist or were never ordere
 
 Approve when the invoice is sound, or when the only issues are immaterial to whether payment is owed.
 
+DO NOT RECHECK THE ARITHMETIC. Every total on this invoice has already been reconciled
+deterministically against the line items, including tax. If the figures did not add up, there would
+be a subtotal_mismatch or total_mismatch finding below. The absence of one means they reconcile.
+Recomputing the sums yourself will produce a wrong answer, because you will not account for tax the
+way the checks did.
+
 You are not deciding whether this invoice required review. That was already determined by policy
 before it reached you. You are deciding whether it should be paid.
 
@@ -56,9 +62,11 @@ INVOICE
   Vendor:   {vendor}
   Number:   {number}
   Due:      {due_date}
-  Total:    {total}
   Items:
 {items}
+  Subtotal: {subtotal}
+  Tax:      {tax}
+  Total:    {total}
 
 VALIDATION FINDINGS
 {flags}
@@ -98,6 +106,8 @@ def approve(
         vendor=inv.vendor or "(not stated)",
         number=inv.invoice_number or "(not stated)",
         due_date=inv.due_date or "(not stated)",
+        subtotal=inv.subtotal.value if inv.subtotal.was_stated else "(not stated)",
+        tax=inv.tax_amount.value if inv.tax_amount.was_stated else "(not stated)",
         total=inv.total.value if inv.total.was_stated else "(not stated)",
         items=items,
         flags=findings,
