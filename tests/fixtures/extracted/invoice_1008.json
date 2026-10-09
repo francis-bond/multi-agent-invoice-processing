@@ -1,0 +1,42 @@
+{
+  "source": "invoice_1008.txt",
+  "reader": "plain",
+  "invoice": {
+    "invoice_number": "INV-1008",
+    "vendor": "NoProd Industries",
+    "issue_date": "2026-01-10",
+    "due_date": "2026-01-20",
+    "currency": null,
+    "revision": null,
+    "notes": null,
+    "line_items": [
+      {
+        "item": "SuperGizmo",
+        "quantity": 12,
+        "unit_price": 400.0,
+        "note": null,
+        "source_text": "- SuperGizmo       x12     $400.00 each"
+      },
+      {
+        "item": "MegaSprocket",
+        "quantity": 6,
+        "unit_price": 850.0,
+        "note": null,
+        "source_text": "- MegaSprocket     x6      $850.00 each"
+      }
+    ],
+    "charges": [],
+    "subtotal": {
+      "value": null,
+      "source_text": null
+    },
+    "tax_amount": {
+      "value": null,
+      "source_text": null
+    },
+    "total": {
+      "value": 9900.0,
+      "source_text": "Total: $9,900.00"
+    }
+  }
+}

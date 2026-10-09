@@ -1,0 +1,49 @@
+{
+  "source": "invoice_1016.json",
+  "reader": "plain",
+  "invoice": {
+    "invoice_number": "INV-1016",
+    "vendor": "Widgets Inc.",
+    "issue_date": "2026-01-27",
+    "due_date": "2026-02-27",
+    "currency": "USD",
+    "revision": null,
+    "notes": "Net 30",
+    "line_items": [
+      {
+        "item": "WidgetA",
+        "quantity": 4,
+        "unit_price": 250.0,
+        "note": null,
+        "source_text": "{\"item\": \"WidgetA\", \"quantity\": 4, \"unit_price\": 250.00, \"amount\": 1000.00}"
+      },
+      {
+        "item": "WidgetB",
+        "quantity": 2,
+        "unit_price": 500.0,
+        "note": null,
+        "source_text": "{\"item\": \"WidgetB\", \"quantity\": 2, \"unit_price\": 500.00, \"amount\": 1000.00}"
+      },
+      {
+        "item": "WidgetC",
+        "quantity": 3,
+        "unit_price": 350.0,
+        "note": null,
+        "source_text": "{\"item\": \"WidgetC\", \"quantity\": 3, \"unit_price\": 350.00, \"amount\": 1050.00}"
+      }
+    ],
+    "charges": [],
+    "subtotal": {
+      "value": 3050.0,
+      "source_text": "\"subtotal\": 3050.00"
+    },
+    "tax_amount": {
+      "value": 183.0,
+      "source_text": "\"tax_amount\": 183.00"
+    },
+    "total": {
+      "value": 3233.0,
+      "source_text": "\"total\": 3233.00"
+    }
+  }
+}

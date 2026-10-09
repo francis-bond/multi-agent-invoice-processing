@@ -1,0 +1,84 @@
+{
+  "source": "invoice_1013.json",
+  "reader": "plain",
+  "invoice": {
+    "invoice_number": "INV-1013",
+    "vendor": "Atlas Industrial Supply",
+    "issue_date": "2026-01-24",
+    "due_date": "2026-03-24",
+    "currency": "USD",
+    "revision": null,
+    "notes": "Net 60",
+    "line_items": [
+      {
+        "item": "WidgetA",
+        "quantity": 15,
+        "unit_price": 250.0,
+        "note": null,
+        "source_text": "{\"item\": \"WidgetA\", \"quantity\": 15, \"unit_price\": 250.00, \"amount\": 3750.00}"
+      },
+      {
+        "item": "WidgetB",
+        "quantity": 10,
+        "unit_price": 500.0,
+        "note": null,
+        "source_text": "{\"item\": \"WidgetB\", \"quantity\": 10, \"unit_price\": 500.00, \"amount\": 5000.00}"
+      },
+      {
+        "item": "GadgetX",
+        "quantity": 5,
+        "unit_price": 750.0,
+        "note": null,
+        "source_text": "{\"item\": \"GadgetX\", \"quantity\": 5, \"unit_price\": 750.00, \"amount\": 3750.00}"
+      },
+      {
+        "item": "WidgetA",
+        "quantity": 5,
+        "unit_price": 240.0,
+        "note": "Volume discount",
+        "source_text": "{\"item\": \"WidgetA\", \"quantity\": 5, \"unit_price\": 240.00, \"amount\": 1200.00, \"note\": \"Volume discount\"}"
+      },
+      {
+        "item": "WidgetB",
+        "quantity": 8,
+        "unit_price": 480.0,
+        "note": "Volume discount",
+        "source_text": "{\"item\": \"WidgetB\", \"quantity\": 8, \"unit_price\": 480.00, \"amount\": 3840.00, \"note\": \"Volume discount\"}"
+      },
+      {
+        "item": "GadgetX",
+        "quantity": 3,
+        "unit_price": 750.0,
+        "note": "Expedited",
+        "source_text": "{\"item\": \"GadgetX\", \"quantity\": 3, \"unit_price\": 750.00, \"amount\": 2250.00, \"note\": \"Expedited\"}"
+      },
+      {
+        "item": "WidgetA",
+        "quantity": 2,
+        "unit_price": 250.0,
+        "note": "Replacement",
+        "source_text": "{\"item\": \"WidgetA\", \"quantity\": 2, \"unit_price\": 250.00, \"amount\": 500.00, \"note\": \"Replacement\"}"
+      },
+      {
+        "item": "GadgetX",
+        "quantity": 1,
+        "unit_price": 750.0,
+        "note": "Sample",
+        "source_text": "{\"item\": \"GadgetX\", \"quantity\": 1, \"unit_price\": 750.00, \"amount\": 750.00, \"note\": \"Sample\"}"
+      }
+    ],
+    "charges": [],
+    "subtotal": {
+      "value": 21040.0,
+      "source_text": "\"subtotal\": 21040.00"
+    },
+    "tax_amount": {
+      "value": 1472.8,
+      "source_text": "\"tax_amount\": 1472.80"
+    },
+    "total": {
+      "value": 22562.8,
+      "source_text": "\"total\": 22562.80"
+    }
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "source": "invoice_1009.json",
+  "reader": "plain",
+  "invoice": {
+    "invoice_number": "INV-1009",
+    "vendor": null,
+    "issue_date": "2026-01-15",
+    "due_date": null,
+    "currency": "USD",
+    "revision": null,
+    "notes": null,
+    "line_items": [
+      {
+        "item": "WidgetA",
+        "quantity": -5,
+        "unit_price": 250.0,
+        "note": null,
+        "source_text": "{\"item\": \"WidgetA\", \"quantity\": -5, \"unit_price\": 250.00}"
+      }
+    ],
+    "charges": [],
+    "subtotal": {
+      "value": 1000.0,
+      "source_text": "\"subtotal\": 1000.00"
+    },
+    "tax_amount": {
+      "value": 0.0,
+      "source_text": "\"tax_amount\": 0.00"
+    },
+    "total": {
+      "value": -250.0,
+      "source_text": "\"total\": -250.00"
+    }
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "source": "invoice_1010.txt",
+  "reader": "plain",
+  "invoice": {
+    "invoice_number": "INV-1010",
+    "vendor": "Consolidated Materials Group",
+    "issue_date": "2026-01-27",
+    "due_date": "2026-02-26",
+    "currency": null,
+    "revision": null,
+    "notes": "Payment Terms: Net 30\nThank you for your business!",
+    "line_items": [
+      {
+        "item": "WidgetA",
+        "quantity": 8,
+        "unit_price": 250.0,
+        "note": null,
+        "source_text": "WidgetA                     8      $250.00     $2,000.00"
+      },
+      {
+        "item": "WidgetB",
+        "quantity": 4,
+        "unit_price": 500.0,
+        "note": null,
+        "source_text": "WidgetB                     4      $500.00     $2,000.00"
+      },
+      {
+        "item": "GadgetX",
+        "quantity": 2,
+        "unit_price": 750.0,
+        "note": null,
+        "source_text": "GadgetX                     2      $750.00     $1,500.00"
+      },
+      {
+        "item": "WidgetA (rush order)",
+        "quantity": 4,
+        "unit_price": 300.0,
+        "note": "rush order",
+        "source_text": "WidgetA (rush order)        4      $300.00     $1,200.00"
+      }
+    ],
+    "charges": [
+      {
+        "label": "Shipping",
+        "amount": 150.0,
+        "source_text": "Shipping:       $150.00"
+      }
+    ],
+    "subtotal": {
+      "value": 6700.0,
+      "source_text": "Subtotal:     $6,700.00"
+    },
+    "tax_amount": {
+      "value": 335.0,
+      "source_text": "Sales Tax:      $335.00"
+    },
+    "total": {
+      "value": 7185.0,
+      "source_text": "TOTAL:        $7,185.00"
+    }
+  }
+}

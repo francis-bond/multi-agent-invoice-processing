@@ -101,6 +101,26 @@ def resolve(item: str, db_path: Path = DB_PATH) -> Match:
     return Match(None, None, "unmatched")
 
 
+def ensure(db_path: Path = DB_PATH) -> None:
+    """Seed the catalogue if it is not there yet.
+
+    The database is gitignored, so a fresh clone has none and the first lookup would fail
+    with "no such table". The seed data is specified by the brief rather than being ours to
+    invent, so creating it on demand loses nothing and means the documented command works on
+    a clean checkout. Existing stock levels are left alone.
+    """
+    conn = sqlite3.connect(db_path)
+    try:
+        exists = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='inventory'"
+        ).fetchone()
+        seeded = exists and conn.execute("SELECT 1 FROM inventory LIMIT 1").fetchone()
+    finally:
+        conn.close()
+    if not seeded:
+        setup(db_path)
+
+
 def lookup(item: str, db_path: Path = DB_PATH) -> int | None:
     """Stock level for an item, or None if it is not in the catalogue at all.
 

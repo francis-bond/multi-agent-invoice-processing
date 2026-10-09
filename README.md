@@ -1,30 +1,98 @@
 # Multi-Agent Invoice Processing
 
-Automates invoice processing end to end: ingest from mixed formats, extract structured data,
-validate against inventory, route for approval, and pay or reject with reasoning.
+Processes vendor invoices end to end: reads whatever format the vendor sent, extracts the data
+with citations, validates it against an inventory database, routes it for approval, has that
+approval audited by a critic, and then pays or refuses with a recorded reason.
 
 ## The problem
 
-Acme Corp processes vendor invoices by hand: staff read them, check items against a legacy inventory
-database, chase VP approval over email, and trigger payment. It runs at a 30% error rate with five-day
-delays.
+Acme Corp processes vendor invoices by hand: staff read them, check items against a legacy
+inventory database, chase VP approval over email, then trigger payment. It runs at a 30% error
+rate with five-day delays.
 
-Invoices arrive in whatever format the vendor sends — PDF, CSV, JSON, XML, plain text — with typos,
-missing fields, impossible quantities, and the occasional item that does not exist.
+Invoices arrive in whatever format the vendor sends — PDF, CSV, JSON, XML, plain text — with
+typos, missing fields, impossible quantities, a currency we do not pay in, and the occasional
+item that does not exist.
 
-> **Status: working end to end.** All six stages run, including the approval critique loop and
-> duplicate detection. Known gaps are listed at the bottom. This README is still thinner than
-> the system it describes and gets rewritten next.
+## What you need
+
+| | |
+|---|---|
+| **Python** | 3.12 or newer |
+| **[uv](https://docs.astral.sh/uv/)** | manages the virtualenv and dependencies |
+| **An xAI API key** | free credits cover this; the full sample set costs well under a dollar |
+
+Runtime dependencies are `langgraph`, `langchain-xai`, `pydantic`, `pdfplumber` and
+`python-dotenv`; `pytest` for the tests. `uv sync` installs all of them.
+
+Reading `.xlsx` or `.docx` invoices additionally needs `openpyxl` or `python-docx`. Those are
+imported lazily and are not installed by default — none of the sample invoices use them, so
+nobody pays for a dependency they do not need. The error message names the package if you hit
+one.
+
+## Setup
+
+```bash
+git clone https://github.com/francis-bond/multi-agent-invoice-processing
+cd multi-agent-invoice-processing
+uv sync
+cp .env.example .env
+```
+
+Then open `.env` and put your key in `XAI_API_KEY`. Get one at
+[console.x.ai](https://console.x.ai). `.env` is gitignored and nothing else in the project
+reads a credential from disk.
+
+`.env.example` documents four optional settings with working defaults: the model, the scrutiny
+threshold, the currency we pay in, and the critic's round limit.
+
+The inventory database is created and seeded on first run, so there is no separate setup step.
+To reset it to the stock levels the brief specifies:
+
+```bash
+uv run python src/inventory.py
+```
 
 ## Running it
 
 ```bash
-cp .env.example .env     # add your xAI key
-uv sync
 uv run python main.py --invoice_path=data/invoices/invoice_1001.txt
-uv run python src/dashboard.py     # audit view of every run, opens in a browser
-uv run python src/logs.py          # the same from the terminal
 ```
+
+That prints the extracted invoice, every validation finding, the approval decision and its
+reasoning, the critic's rounds where it ran, and what a person should do next.
+
+Try these four to see the interesting paths:
+
+```bash
+# pays cleanly
+uv run python main.py --invoice_path=data/invoices/invoice_1001.txt
+
+# the critic overturns a rejection: a shipping line the schema used not to model
+uv run python main.py --invoice_path=data/invoices/invoice_1010.txt
+
+# a real vendor error the critic fails to talk anyone out of
+uv run python main.py --invoice_path=data/invoices/invoice_1013.json
+
+# a PDF whose text layer has OCR damage, read correctly anyway
+uv run python main.py --invoice_path=data/invoices/invoice_1012.pdf
+```
+
+## The dashboard
+
+```bash
+uv run python src/dashboard.py     # builds dashboard.html and opens it
+uv run python src/logs.py          # the same record, in the terminal
+```
+
+Every run writes to `runs.db` as it happens, so the dashboard is a view over history rather
+than over one invoice. It groups runs by what each one asks of a human — paid, denied, or
+needs a person — with a one-line reason, the local-time timestamp, search over invoice number
+and vendor, and click-through to the findings, the approval reasoning and the critic
+transcript.
+
+It is a separate command on purpose. Processing one invoice should not seize a browser window,
+and the run that most needs looking at is usually not the one you just did.
 
 ## Tests
 
@@ -32,9 +100,15 @@ uv run python src/logs.py          # the same from the terminal
 uv run python -m pytest tests/ -q
 ```
 
-No test calls a model and no test touches `runs.db`, `inventory.db` or `ledger.db` beyond the
-seeded catalogue. The agent functions take an injectable model and the graph nodes are stubbed,
-so the suite is fast, free and independent of whatever payment history is on disk.
+164 tests plus 4 marking an open design question, under a second, no API key needed. No test calls a model and none touches `runs.db`
+or `ledger.db`. CI runs them on every push with no key set, so a test that reaches for the
+network fails there instead of quietly spending money.
+
+Included are acceptance tests for the five scenarios the brief names — quantity over stock,
+an item stocked but empty, unknown items, a negative quantity, and an unknown `WidgetC`. Those
+replay recorded extractions from `tests/fixtures/extracted/`, so the question "does this still
+match what they specified?" is answered by CI. Re-record them with
+`uv run python scripts/record_fixtures.py` if the extraction schema changes.
 
 What is asserted is never a model's judgment — that is not a testable property. It is
 everything the surrounding code does with the judgment: which approval lane an invoice takes,
@@ -45,19 +119,115 @@ and what survives into the final state.
 
 **Every control decision is code. Every judgment call is an agent. Nothing in between.**
 
-Approval thresholds, routing, and the pre-payment check are deterministic and auditable — an auditor
-asking why an invoice was paid gets a rule and a line number, not a model's opinion. Extraction,
-fuzzy vendor matching, and approval reasoning are agents, because none of those reduce to a rule.
+```mermaid
+flowchart TD
+    ingest["<b>ingest</b> — code<br/>file to text, one reader per format"]
+    extract["<b>extract</b> — AGENT<br/>structured fields, each cited"]
+    validate["<b>validate</b> — code<br/>stock, arithmetic, duplicates, currency"]
+    route["<b>route</b> — code<br/>sets the lane: amount or any flag"]
+    approve["<b>approve</b> — AGENT<br/>should this be paid?"]
+    critic["<b>critic</b> — AGENT<br/>audit that reasoning<br/>against the document"]
+    ground{"<b>grounded?</b> — code<br/>is the quote really<br/>in the document?"}
+    gate{"<b>gate</b> — code<br/>hard rules, before money moves"}
+    pay(["pay"])
+    deny(["deny"])
+    escalate(["escalate to a person"])
 
-Every extracted value carries the verbatim text it was read from. When validation fails, that is what
-distinguishes "the extractor misread this" from "the invoice is genuinely wrong" — the first is worth
-retrying, the second never will be.
+    ingest --> extract --> validate --> route --> approve
+    approve -->|"clean and under threshold"| gate
+    approve -->|"over threshold<br/>or any flag"| critic
+    critic --> ground
+    ground -->|"no objection stands"| gate
+    ground -->|"objection stands,<br/>under the round limit"| approve
+    ground -->|"objection stands,<br/>limit reached"| escalate
+    gate --> pay
+    gate --> deny
 
-Full rationale, including rejected alternatives, will land in `DECISIONS.md` as the system is built.
+    classDef code fill:#e8f0fe,stroke:#4a6fa5,color:#13243d
+    classDef agent fill:#fdf3e0,stroke:#9a6400,color:#3d2f13
+    classDef terminal fill:#ececea,stroke:#6b6b64,color:#1a1a18
+    class ingest,validate,route,ground,gate code
+    class extract,approve,critic agent
+    class pay,deny,escalate terminal
+```
+
+Thresholds, routing, quote grounding and the pre-payment gate are deterministic. An auditor
+asking why an invoice was paid gets a rule and a line number, not a model's opinion. Extraction
+and approval reasoning are agents, because neither reduces to a rule.
+
+**The agent never picks its own lane.** Code decides whether an invoice needs scrutiny. If a
+model could decide whether a control applied to it, it would not be a control.
+
+**Every extracted value carries the verbatim text it was read from.** That citation is what
+separates "the extractor misread this" from "the invoice is genuinely wrong" — the first is
+worth retrying, the second never will be.
+
+**The critic sees the document; the approval agent never does.** A critic given the same
+evidence and asked whether it agrees will agree. This one reads the source, so it catches the
+class of error the approver is structurally blind to: anything the schema failed to model.
+
+**Code decides whether an objection counts.** Every objection must quote the document, and the
+quote is checked against it. An objection that cannot be grounded is recorded and discarded, so
+a confidently-worded invention cannot force a revision.
+
+**The gate is a seatbelt, not a checkpoint.** It re-examines nothing and re-decides nothing. It
+refuses to let certain conditions reach a transfer whatever anyone upstream concluded — and it
+consults the payments ledger itself rather than trusting that nothing earlier missed a
+duplicate.
+
+**A deadlock is not a rejection.** When the critic and the approver cannot settle an invoice
+within the round limit, it is escalated: neither paid nor refused, filed for a person with the
+whole argument attached. "We could not tell" is its own answer.
+
+The reasoning behind each of these, including the alternatives that were tried and dropped, is
+in the commit messages — they are written to be read.
+
+## What was cut, and why
+
+- **Human-in-the-loop approval via `interrupt()`.** LangGraph was chosen partly for its
+  checkpointing, and a real VP approval would need it. The brief specifies *simulated*
+  approval, so the checkpointing argument stops being load-bearing and building it would have
+  been architecture for a requirement that does not exist.
+- **A fuzzy-matching agent for item names.** Cut as process theatre. The actual problem was
+  spelling variants, and `Widget A` → `WidgetA` is an exact match after a declared transform,
+  not a judgment call. It is code, and it reports which stage matched.
+- **Currency conversion.** Deliberate. See known gaps.
+- **A `DECISIONS.md`.** The rationale lives in the commit messages next to the code it
+  explains, which cannot drift from it.
+
+## Known gaps
+
+- **The gate does not block unknown or unstocked items.** It refuses on absolutes only. If the
+  approval agent ever approved an invoice for an item we do not stock, the payment would go
+  through — in practice it rejects all of them. Whether materiality there is the agent's call
+  or the gate's is an open design question, and `tests/test_acceptance.py` marks it `xfail`
+  rather than hiding it.
+- **No extraction self-correction loop.** The citation-driven retry is designed and not built:
+  when a figure's citation is missing or does not match the document, that is a misread worth
+  retrying, as distinct from an invoice that is genuinely wrong. The approval critic loop is
+  built; this second one is not.
+- **No inbox pre-scan.** A revision that supersedes an unpaid invoice is only caught after the
+  earlier one is paid, by the ledger. Scanning the inbox before processing would prevent the
+  wrong payment instead of detecting it.
+- **Scanned PDFs are refused, not read.** No OCR. The reader distinguishes a scan from a blank
+  document and says which, because those need different responses.
+- **Currency is caught, never converted.** An invoice in another currency goes to a person. A
+  conversion needs a rate source, a rate date — invoice date and payment date are different
+  numbers and different audit answers — and a policy on who bears the spread. Without those,
+  converting would mean putting a number nobody can defend into a payments record.
 
 ## Test data
 
-`data/invoices/` holds the 20 provided sample invoices. They are committed so the repo runs
-standalone. They deliberately include broken cases: quantities exceeding stock, unknown items,
-negative quantities, duplicated invoice numbers, and at least one date written with a capital `O`
-in place of a zero.
+`data/invoices/` holds the 20 provided sample files, committed so the repo runs standalone.
+They deliberately include broken cases: quantities over stock, unknown items, a negative
+quantity, duplicated invoice numbers, a revision of an invoice that was already paid, a
+`field,value` CSV that collapses its line items under naive parsing, an invoice in EUR, and a
+PDF whose text layer writes a capital `O` where a zero belongs.
+
+Three databases, all gitignored so everyone builds their own:
+
+| | |
+|---|---|
+| `inventory.db` | the mock catalogue, seeded with the stock levels the brief specifies |
+| `runs.db` | observability. Useful, and disposable |
+| `ledger.db` | the record of money that has left the account. Separate on purpose, so a decision to prune logs can never delete it |
