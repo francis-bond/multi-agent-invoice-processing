@@ -41,6 +41,21 @@ from. If the document does not state a value at all, set BOTH to null. Do not pu
 the document never mentions - a stated "Tax: $0.00" and an absent tax line are different facts, and
 the citation is how they are told apart.
 
+CHARGES THAT ARE NOT LINE ITEMS AND NOT TAX
+Invoices carry amounts that are neither goods nor tax: shipping, freight, handling, delivery,
+duties, insurance, late fees, deposits, discounts, credits, refunds, rounding adjustments.
+Put every one of these in `charges`, with the label as written and the amount signed - a
+discount or credit is negative.
+
+Tax does NOT go in charges. It has its own field. Put it there and only there, however the
+invoice labels it ("Sales Tax", "VAT", "GST", "Tax (6%)").
+
+Goods do NOT go in charges. They are line items.
+
+These amounts are the difference between subtotal plus tax and the stated total, so missing
+one makes a correct invoice look like it cannot add up. If the total exceeds subtotal plus
+tax, look for a charge before concluding anything.
+
 DATES. Return ISO format (YYYY-MM-DD) when the date is unambiguous. If a date cannot be read
 confidently, return it exactly as printed rather than guessing at the intended value.
 

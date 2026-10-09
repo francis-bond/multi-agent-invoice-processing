@@ -64,6 +64,8 @@ INVOICE
   Due:      {due_date}
   Items:
 {items}
+  Other charges:
+{extras}
   Subtotal: {subtotal}
   Tax:      {tax}
   Total:    {total}
@@ -115,6 +117,9 @@ def approve(
         + (f"   [note: {li.note}]" if li.note else "")
         for li in inv.line_items
     ) or "    (none)"
+    extras = "\n".join(
+        f"    {c.label}: {c.amount:,.2f}" for c in inv.charges
+    ) or "    (none)"
     findings = "\n".join(
         f"  [{f['severity']}] {f['code']}: {f['detail']}" for f in flags
     ) or "  None. All checks passed."
@@ -133,6 +138,7 @@ def approve(
         tax=inv.tax_amount.value if inv.tax_amount.was_stated else "(not stated)",
         total=inv.total.value if inv.total.was_stated else "(not stated)",
         items=items,
+        extras=extras,
         flags=findings,
     )
     return model.invoke(prompt), prompt

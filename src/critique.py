@@ -95,6 +95,8 @@ THE DECISION UNDER REVIEW
 WHAT YOUR COLLEAGUE WAS SHOWN
   Vendor:   {vendor}
   Number:   {number}
+  Other charges:
+{extras}
   Total:    {total}
   Items:
 {items}
@@ -188,6 +190,9 @@ def critique(
         + (f"   [note: {li.note}]" if li.note else "")
         for li in inv.line_items
     ) or "    (none)"
+    extras = "\n".join(
+        f"    {c.label}: {c.amount:,.2f}" for c in inv.charges
+    ) or "    (none)"
     findings = "\n".join(
         f"    [{f['severity']}] {f['code']}: {f['detail']}" for f in flags
     ) or "    None. All checks passed."
@@ -198,6 +203,7 @@ def critique(
         number=inv.invoice_number or "(not stated)",
         total=inv.total.value if inv.total.was_stated else "(not stated)",
         items=items,
+        extras=extras,
         flags=findings,
         document=document,
     )

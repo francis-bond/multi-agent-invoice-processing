@@ -57,6 +57,25 @@ class LineItem(BaseModel):
     )
 
 
+class Charge(BaseModel):
+    """A charge or credit on the invoice that is not a line item and is not tax.
+
+    Shipping, freight, handling, duties, discounts, credits, deposits, late fees. These are
+    real money on the invoice and they are the difference between subtotal plus tax and the
+    stated total. Without a field for them, every invoice carrying one reports a false
+    total_mismatch - which is exactly what invoice_1010 did.
+
+    Amounts are signed: a discount or credit is negative, so the arithmetic is one sum rather
+    than a special case per label.
+    """
+
+    label: str = Field(description="The charge as labelled on the invoice, e.g. 'Shipping'")
+    amount: float = Field(
+        description="The amount, negative for a discount, credit or refund"
+    )
+    source_text: str = Field(description="The exact line this was read from, copied verbatim")
+
+
 class ExtractedInvoice(BaseModel):
     invoice_number: str | None = Field(description="Invoice number as written, e.g. INV-1001")
     vendor: str | None = Field(description="Vendor name as written, not corrected or expanded")
@@ -70,7 +89,8 @@ class ExtractedInvoice(BaseModel):
     notes: str | None = Field(
         description="Any free-text note, comment or remark on the document. Null if absent."
     )
-    line_items: list[LineItem] = Field(description="Every line item on the invoice, in order")
+    line_items: list[LineItem]
+    charges: list[Charge] = Field(description="Every line item on the invoice, in order")
     subtotal: Cited = Field(description="Subtotal, with the text it was read from")
     tax_amount: Cited = Field(description="Tax amount, with the text it was read from")
     total: Cited = Field(description="Total amount, with the text it was read from")

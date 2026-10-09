@@ -12,9 +12,10 @@
       "quantity": 20,
       "unit_price": 750.0,
       "note": null,
-      "source_text": "  GadgetX  qty 20   @ $750 ea"
+      "source_text": "GadgetX  qty 20   @ $750 ea"
     }
   ],
+  "charges": [],
   "subtotal": {
     "value": null,
     "source_text": null

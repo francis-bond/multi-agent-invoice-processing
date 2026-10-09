@@ -130,13 +130,19 @@ def _arithmetic(inv: ExtractedInvoice) -> list[Flag]:
     if inv.total.was_stated:
         base = inv.subtotal.value if inv.subtotal.was_stated else computed
         tax = inv.tax_amount.value if inv.tax_amount.was_stated else 0
-        expected = base + tax
+        # Shipping, handling, discounts and the like are real money on the invoice. Leaving
+        # them out of the expected total reported a false mismatch on every invoice that
+        # carried one, and left the approval critic to rediscover the charge from the raw
+        # document on each run. The schema should model the data.
+        extra = sum(c.amount for c in inv.charges)
+        expected = base + tax + extra
         if abs(expected - inv.total.value) > CENT:
-            flags.append(Flag(
-                code="total_mismatch",
-                detail=f"subtotal plus tax is {expected:.2f}, invoice states total {inv.total.value:.2f}",
-                severity="error",
-            ))
+            parts = f"subtotal plus tax{' plus charges' if inv.charges else ''}"
+            detail = f"{parts} is {expected:.2f}, invoice states total {inv.total.value:.2f}"
+            if inv.charges:
+                detail += " (charges: " + ", ".join(
+                    f"{c.label} {c.amount:,.2f}" for c in inv.charges) + ")"
+            flags.append(Flag(code="total_mismatch", detail=detail, severity="error"))
     return flags
 
 
