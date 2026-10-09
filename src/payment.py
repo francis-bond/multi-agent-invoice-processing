@@ -12,6 +12,7 @@ pointless. These are conditions that are never legitimate, not conditions that a
 from ledger import prior_by_number, record
 from models import ExtractedInvoice
 from policy import HOME_CURRENCY
+from validate import source_of
 from state import Flag
 
 CENT = 0.01
@@ -38,6 +39,30 @@ def gate(inv: ExtractedInvoice, flags: list[Flag], decision: str) -> str | None:
 
     if any(li.quantity < 0 for li in inv.line_items):
         return "a line item has a negative quantity"
+
+    # Findings our own records produced, which an approval cannot waive.
+    #
+    # This used to be left to judgment, on the reasoning that whether an unknown item or an
+    # odd price is material is a call the agent should make. That argument assumed the agent
+    # fails independently and rarely. It does not: the critic argued a duplicate payment was
+    # impossible, the approval agent agreed, and both were wrong together on a finding taken
+    # straight from the ledger. The gate caught that one only because it happens to check the
+    # ledger itself - the same argument applied to an unknown supplier or a tenfold overcharge
+    # would have paid.
+    #
+    # So the rule is now the one the gate was built for: an invoice whose own records say the
+    # goods, the price or the payee are wrong does not get paid on an agent's say-so. It goes
+    # to a person. The document-derived findings stay the agent's to weigh, because it can see
+    # everything they were based on.
+    system_errors = [
+        f for f in flags
+        if f["severity"] == "error" and source_of(f["code"]) == "system"
+    ]
+    if system_errors:
+        first = system_errors[0]
+        more = f" (and {len(system_errors) - 1} more)" if len(system_errors) > 1 else ""
+        return (f"our own records contradict this invoice: {first['detail']}{more}; "
+                f"an approval cannot waive that")
 
     # Last line of defence. Everything upstream that decides is an LLM; this is deterministic
     # and consults the ledger rather than trusting that nothing earlier missed it.

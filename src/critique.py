@@ -31,6 +31,7 @@ from pydantic import BaseModel, Field
 from llm import client
 from models import ExtractedInvoice
 from state import Flag
+from validate import source_of
 
 # How many times the approver may be sent back before the invoice goes to a person. Two
 # informed revisions that have not resolved the objection mean the system cannot settle it.
@@ -38,6 +39,11 @@ MAX_ROUNDS = int(os.environ.get("CRITIQUE_MAX_ROUNDS", "2"))
 
 
 class Objection(BaseModel):
+    targets: str = Field(
+        description="The exact finding code this objection challenges, copied from the "
+                    "findings list - for example 'total_mismatch'. Use 'reasoning' if you "
+                    "are challenging how the decision was argued rather than a finding."
+    )
     claim: str = Field(description="The specific statement in the reasoning being challenged")
     problem: str = Field(description="Why that statement is wrong or unsupported, in one or two sentences")
     quote: str = Field(
@@ -72,6 +78,24 @@ your colleague cannot see it. Look for one before accepting that the vendor made
 Also look for anything stated in the document that changes whether this should be paid and
 that no extracted field carries: cancellation or void notices, "sample only" or "do not pay"
 markings, duplicate or revision notices, a different payee, or payment terms already met.
+
+WHAT YOU CAN AND CANNOT ARGUE WITH
+Each finding below says where its facts came from.
+
+A finding "from the document" was read off the invoice in front of you. You can see everything
+it was based on, so challenge it freely - that is the point of your having the document.
+
+A finding "from the system" was looked up in our own records: our payment history, our
+catalogue, our approved supplier list. None of that is in the invoice, and you cannot see it.
+The document's silence about it proves nothing. An invoice we have already paid does not
+announce that fact, a vendor we have never approved does not say so, and a price above the one
+we agreed looks exactly like a normal price. Do not argue that one of these is impossible
+because the document does not mention it, and do not reason from dates in the document about
+when we paid something. Those objections will be discarded, and if the approval agent believes
+one before it is discarded, we pay money we do not owe.
+
+Name the finding you are challenging in `targets`, exactly as the code appears below, or
+"reasoning" if your objection is about how the decision was argued rather than about a finding.
 
 The automated checks reconciled subtotal plus tax against the line items arithmetically and
 correctly. Do not redo that arithmetic. Your question is whether something in the document
@@ -137,10 +161,21 @@ def _normalise(text: str) -> str:
 
 
 def ground(critique: Critique, document: str) -> tuple[list[Objection], list[Objection]]:
-    """Split objections into those the document supports and those it does not.
+    """Split objections into those that stand and those that do not.
 
     This is the control decision, and it is code. The critic supplies judgment and evidence;
-    whether that evidence exists is a fact, and facts are not a model's to assert.
+    whether that evidence exists, and whether it bears on the finding at all, are facts.
+
+    Two independent reasons to discard an objection:
+
+    1. **The quote is not in the document.** Then it is an assertion, not evidence.
+
+    2. **The finding does not come from the document.** Our payment history, catalogue and
+       supplier list are not in the invoice, so nothing the document says or omits can
+       overturn them. This is the one that matters: a critic once argued that a duplicate
+       payment was impossible because no duplicate notice appeared in the document, and the
+       approval agent was persuaded and approved paying 5,000.00 a second time. The argument
+       was coherent and quoted the document accurately. It was simply about the wrong thing.
     """
     haystack = _normalise(document)
     supported, unsupported = [], []
@@ -148,10 +183,9 @@ def ground(critique: Critique, document: str) -> tuple[list[Objection], list[Obj
         quote = _normalise(obj.quote)
         # A quote of two or three characters would match almost anything. Require enough
         # text to actually identify a passage.
-        if len(quote) >= 8 and quote in haystack:
-            supported.append(obj)
-        else:
-            unsupported.append(obj)
+        quoted = len(quote) >= 8 and quote in haystack
+        in_scope = obj.targets == "reasoning" or source_of(obj.targets) == "document"
+        (supported if quoted and in_scope else unsupported).append(obj)
     return supported, unsupported
 
 
@@ -188,8 +222,11 @@ def critique(
     extras = "\n".join(
         f"    {c.label}: {c.amount:,.2f}" for c in inv.charges
     ) or "    (none)"
+    # Each finding is labelled with where its facts came from, because that decides whether
+    # the critic has any standing to argue with it.
     findings = "\n".join(
-        f"    [{f['severity']}] {f['code']}: {f['detail']}" for f in flags
+        f"    [{f['severity']}] {f['code']} (from the {source_of(f['code'])}): {f['detail']}"
+        for f in flags
     ) or "    None. All checks passed."
     prompt = CRITIC_PROMPT.format(
         decision=decision,

@@ -175,23 +175,38 @@ worth retrying, the second never will be.
 evidence and asked whether it agrees will agree. This one reads the source, so it catches the
 class of error the approver is structurally blind to: anything the schema failed to model.
 
-**Code decides whether an objection counts.** Every objection must quote the document, and the
-quote is checked against it. An objection that cannot be grounded is recorded and discarded, so
-a confidently-worded invention cannot force a revision.
+**Code decides whether an objection counts**, on two independent questions. Every objection
+must quote the document, and the quote is checked against it, so a confidently-worded invention
+cannot force a revision. And every finding is labelled with where its facts came from: a
+finding read off the document is the critic's to argue with, while one looked up in our own
+records — payment history, catalogue, supplier list — is not, because none of that is in the
+invoice and the document's silence about it proves nothing.
+
+That second rule exists because of a real near miss. Validation flagged an already-paid
+invoice, the critic argued the duplicate was impossible since no duplicate notice appeared in
+the document and the dates "did not line up", and the approval agent was persuaded and approved
+paying 5,000.00 twice. The objection was coherent and quoted the document accurately — it was
+simply about something the document cannot speak to.
 
 **The gate is a seatbelt, not a checkpoint.** It re-examines nothing and re-decides nothing. It
 refuses to let certain conditions reach a transfer whatever anyone upstream concluded — and it
 consults the payments ledger itself rather than trusting that nothing earlier missed a
 duplicate.
 
-It has earned its place. On a run of an already-paid `invoice_1001`, validation flagged the
-duplicate, the critic argued the duplicate was impossible — *"the invoice is dated 2026-01-15,
-the alleged payment was 2026-10-09"* — and the approval agent was persuaded and approved it. The
-critic was wrong: it had confused the invoice's business date with the payment date, and a
-January invoice paid in October is ordinary. Both agents agreed on a second payment of 5,000.00,
-and the gate refused it on a ledger lookup. The dashboard marks that row **gate overrode the
-approval**, because an auditor looking into a bad payment needs to see it without opening
-anything.
+It has earned its place, and it decided an open question. The gate used to refuse on absolutes
+only — no total, a non-positive total, a negative quantity, an invoice already paid, an
+unreconciled subtotal. An unknown item or a tenfold overcharge was none of those, on the
+reasoning that materiality is a judgment call the agent owns.
+
+That reasoning assumed the agent fails independently and rarely. It does not. Two agents
+agreed with each other on a second payment of 5,000.00, and the gate caught it only because it
+happens to check the ledger itself; the identical argument aimed at an unknown supplier would
+have paid. So the gate now refuses anything our own records contradict — the goods, the price
+or the payee — and an approval cannot waive it. Document-derived findings stay the agent's to
+weigh, because it can see everything they are based on.
+
+The dashboard marks a row where this fires **gate overrode the approval**, because an auditor
+looking into a bad payment needs to see it without opening anything.
 
 **A failure stops the line; a finding does not.** An unreadable file or a refused extraction
 means the system could not do its job, so the run ends there — one step in the log, not six

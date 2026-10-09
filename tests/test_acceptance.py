@@ -68,31 +68,37 @@ class TestTheCoreScenarios:
         inv = load("invoice_1009")
         assert gate(inv, validate(inv), "approve") is not None
 
-    @pytest.mark.xfail(reason="open design question: should the gate be the backstop for "
-                              "'these goods may not exist', or is materiality a judgment "
-                              "call the agent owns? See README known gaps.",
-                       strict=True)
     @pytest.mark.parametrize("stem", ["invoice_1002", "invoice_1003", "invoice_1008",
                                       "invoice_1016"])
-    def test_stock_findings_are_not_currently_gate_blocking(self, stem):
-        """Documents a real hole rather than hiding it.
+    def test_our_own_records_cannot_be_waived_by_an_approval(self, stem):
+        """These four were payable until recently, and this test was an xfail saying so.
 
-        The gate refuses on absolutes only - no total, non-positive total, negative quantity,
+        The gate refused on absolutes only - no total, non-positive total, negative quantity,
         already paid, unreconciled subtotal. An unknown or unstocked item is none of those, so
-        if the approval agent ever approved one of these, the money would move. In practice
-        the agent rejects all four, which means the only thing between an LLM mistake and a
-        payment for goods we have no record of stocking is the LLM.
+        an approval would have paid them. The argument for leaving it that way was that
+        materiality is a judgment call the agent owns, which assumed the agent fails
+        independently and rarely.
 
-        Marked xfail(strict) deliberately: if the gate is extended to cover these, this test
-        fails loudly and gets deleted, rather than quietly passing and being forgotten.
+        It does not. The critic argued a duplicate payment was impossible, the approval agent
+        agreed, and both were wrong together on a finding read straight from the ledger. That
+        one was caught only because the gate happens to check the ledger itself; the same
+        argument applied to an unknown item would have paid.
         """
         inv = load(stem)
-        assert gate(inv, validate(inv), "approve") is not None
+        blocked = gate(inv, validate(inv), "approve")
+        assert blocked is not None, f"{stem} must not be payable on an approval alone"
+        assert "our own records contradict this invoice" in blocked
 
-    @pytest.mark.parametrize("stem,_d,_e", CORE_SCENARIOS, ids=[s[0] for s in CORE_SCENARIOS])
-    def test_each_takes_the_scrutiny_path(self, stem, _d, _e):
-        inv = load(stem)
-        assert needs_scrutiny(inv, validate(inv)) is True
+    def test_a_document_derived_finding_is_still_the_agents_to_weigh(self):
+        """The gate did not become a second approver.
+
+        invoice_1013's 50.00 arithmetic error is read off the document, and the agent can see
+        everything it is based on. Whether that is material stays judgment.
+        """
+        inv = load("invoice_1013")
+        doc_only = [f for f in validate(inv) if f["code"] == "total_mismatch"]
+        assert doc_only, "1013 has a document-derived error"
+        assert gate(inv, doc_only, "approve") is None
 
 
 class TestCasesWeAdded:

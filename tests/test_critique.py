@@ -27,12 +27,17 @@ CSV_DOC = (
 )
 
 
-def obj(quote, claim="a claim", problem="a problem"):
-    return Objection(claim=claim, problem=problem, quote=quote)
+def obj(quote, claim="a claim", problem="a problem", targets="total_mismatch"):
+    """Defaults to a document-derived target, which is the in-scope case."""
+    return Objection(targets=targets, claim=claim, problem=problem, quote=quote)
 
 
 def crit(*quotes, verified=()):
     return Critique(verified=list(verified), objections=[obj(q) for q in quotes])
+
+
+def crit_targeting(finding, quote):
+    return Critique(verified=[], objections=[obj(quote, targets=finding)])
 
 
 class TestGrounded:
@@ -89,6 +94,62 @@ class TestNotGrounded:
         # Ungrounded objections stay in the record: a critic that invents quotes is worth
         # knowing about. They just carry no authority.
         assert unsupported[0].quote == "Handling Fee: $400.00"
+
+
+class TestScope:
+    """The critic reads the document. It cannot overturn what the document cannot speak to.
+
+    This is the control that stops the failure that nearly paid twice: the critic argued a
+    duplicate payment was impossible because no duplicate notice appeared in the document,
+    quoting the document accurately, and the approval agent believed it.
+    """
+
+    @pytest.mark.parametrize("finding", ["total_mismatch", "subtotal_mismatch",
+                                         "negative_quantity", "missing_due_date",
+                                         "foreign_currency", "item_on_multiple_lines"])
+    def test_a_document_derived_finding_can_be_challenged(self, finding):
+        supported, _ = ground(crit_targeting(finding, "Shipping:       $150.00"), DOC)
+        assert len(supported) == 1, f"{finding} is readable from the document"
+
+    @pytest.mark.parametrize("finding", ["duplicate_invoice_number", "revises_paid_invoice",
+                                         "possible_duplicate_billing", "item_not_found",
+                                         "quantity_exceeds_stock", "item_out_of_stock",
+                                         "price_above_catalogue", "unknown_vendor"])
+    def test_a_system_derived_finding_cannot_be(self, finding):
+        """Our payment history, catalogue and supplier list are not in the invoice. An
+        invoice we already paid does not announce it, and a vendor we never approved does
+        not say so, so the document's silence proves nothing."""
+        supported, unsupported = ground(
+            crit_targeting(finding, "Shipping:       $150.00"), DOC)
+        assert supported == [], f"{finding} is not the critic's to overturn"
+        assert len(unsupported) == 1, "but it stays in the record"
+
+    def test_the_exact_failure_that_nearly_paid_twice(self):
+        """Verbatim from a real run: a correctly quoted, coherent, wrong objection."""
+        c = Critique(verified=[], objections=[Objection(
+            targets="duplicate_invoice_number",
+            claim="the invoice was already paid",
+            problem=("The document date 2026-01-15 precedes the alleged prior payment date "
+                     "2026-10-09, and no duplicate notice appears in the document"),
+            quote="INVOICE #INV-1010")])
+        supported, unsupported = ground(c, DOC)
+        assert supported == [], "a January invoice paid in October is not a contradiction"
+        assert len(unsupported) == 1
+
+    def test_an_objection_to_the_reasoning_itself_is_in_scope(self):
+        supported, _ = ground(crit_targeting("reasoning", "Shipping:       $150.00"), DOC)
+        assert len(supported) == 1
+
+    def test_an_unclassified_finding_fails_safe(self):
+        """A new finding nobody has classified cannot be argued away until someone decides
+        it should be."""
+        supported, _ = ground(crit_targeting("some_new_check", "Shipping:       $150.00"), DOC)
+        assert supported == []
+
+    def test_scope_and_grounding_are_independent(self):
+        """In scope but unquoted is still discarded."""
+        supported, _ = ground(crit_targeting("total_mismatch", "Handling: $400.00"), DOC)
+        assert supported == []
 
 
 class TestFeedback:

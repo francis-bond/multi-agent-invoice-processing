@@ -13,6 +13,57 @@ from inventory import canonical, resolve, strip_annotation, vendor_is_approved
 from ledger import prior_by_content, prior_by_number
 from state import Flag
 
+# Where each finding gets its facts, which decides whether the critic may argue with it.
+#
+# The critic reads the source document and nothing else, so it can legitimately challenge any
+# finding derived FROM that document - it may spot a charge or a note the extraction dropped.
+# It cannot challenge a finding derived from our own records. Our payment history, catalogue
+# and supplier list are not in the document, and the document's silence about them is not
+# evidence. That is exactly how a real payment nearly happened: the critic argued that a
+# duplicate was "impossible" because no duplicate notice appeared in the document, and the
+# approval agent believed it.
+#
+# Recorded per code in one place rather than as a field on every Flag, so there is one thing
+# to update and the test suite can assert nothing is missing.
+EVIDENCE_SOURCE: dict[str, str] = {
+    # read off the document itself - the critic can see these and may argue
+    "total_mismatch": "document",
+    "subtotal_mismatch": "document",
+    "negative_quantity": "document",
+    "zero_quantity": "document",
+    "negative_unit_price": "document",
+    "negative_total": "document",
+    "missing_vendor": "document",
+    "missing_invoice_number": "document",
+    "missing_due_date": "document",
+    "no_line_items": "document",
+    "item_on_multiple_lines": "document",
+    "foreign_currency": "document",
+    # looked up in our own records - not the critic's to overturn from the document
+    "item_not_found": "system",
+    "item_out_of_stock": "system",
+    "quantity_exceeds_stock": "system",
+    "item_matched_loosely": "system",
+    "price_above_catalogue": "system",
+    "unknown_vendor": "system",
+    "duplicate_invoice_number": "system",
+    "revises_paid_invoice": "system",
+    "possible_duplicate_billing": "system",
+    # about the run, not the invoice
+    "critique_unsupported": "system",
+    "critic_unavailable": "system",
+}
+
+
+def source_of(code: str) -> str:
+    """Where a finding's facts came from. Unknown codes are treated as system-derived.
+
+    Defaulting to "system" fails safe: a new finding nobody classified cannot be argued away
+    until someone decides it should be.
+    """
+    return EVIDENCE_SOURCE.get(code, "system")
+
+
 # Money comparisons need a tolerance. Floats do not reconcile exactly, and invoices are
 # rounded to cents anyway.
 CENT = 0.01

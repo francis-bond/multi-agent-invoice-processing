@@ -95,7 +95,8 @@ class TestFlagsSurviveToTheEnd:
                                     total=5000.0)
         stub.decisions = [("reject", "over stock")]
         stub.critiques = [Critique(verified=[], objections=[
-            Objection(claim="c", problem="p", quote="not in the document at all")])]
+            Objection(targets="total_mismatch", claim="c", problem="p",
+                      quote="not in the document at all")])]
 
         state = run(invoice_file)
         codes = flag_codes(state["flags"])
@@ -132,7 +133,8 @@ class TestTheCriticLoop:
                                                                seeded_inventory):
         stub.invoice = self._scrutiny_invoice()
         stub.critiques = [Critique(verified=[], objections=[
-            Objection(claim="c", problem="p", quote="a quote that is not in the document")])]
+            Objection(targets="total_mismatch", claim="c", problem="p",
+                      quote="a quote that is not in the document")])]
         state = run(invoice_file)
         assert len(stub.approve_calls) == 1, "the decision should stand"
         assert state.get("critique_rounds", 0) == 0
@@ -144,8 +146,8 @@ class TestTheCriticLoop:
         stub.decisions = [("reject", "does not reconcile"), ("approve", "shipping explains it")]
         stub.critiques = [
             Critique(verified=[], objections=[Objection(
-                claim="does not reconcile", problem="shipping explains the gap",
-                quote="Shipping: 25.00")]),
+                targets="total_mismatch", claim="does not reconcile",
+                problem="shipping explains the gap", quote="Shipping: 25.00")]),
             Critique(verified=["shipping accounted for"], objections=[]),
         ]
         state = run(invoice_file)
@@ -163,7 +165,8 @@ class TestTheCriticLoop:
         stub.invoice = self._scrutiny_invoice()
         stub.decisions = [("reject", "no")]
         stub.critiques = [Critique(verified=[], objections=[Objection(
-            claim="c", problem="the gap is unexplained", quote="Shipping: 25.00")])]
+            targets="total_mismatch", claim="c", problem="the gap is unexplained",
+            quote="Shipping: 25.00")])]
         state = run(invoice_file)
         assert state.get("escalation_reason"), "should escalate"
         assert "the gap is unexplained" in state["escalation_reason"]
@@ -175,7 +178,7 @@ class TestTheCriticLoop:
         stub.invoice = self._scrutiny_invoice()
         stub.decisions = [("reject", "no")]
         stub.critiques = [Critique(verified=[], objections=[Objection(
-            claim="c", problem="p", quote="Shipping: 25.00")])]
+            targets="total_mismatch", claim="c", problem="p", quote="Shipping: 25.00")])]
         run(invoice_file)
         assert len(stub.approve_calls) == MAX_ROUNDS + 1
 
