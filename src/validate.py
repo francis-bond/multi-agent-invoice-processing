@@ -49,7 +49,13 @@ EVIDENCE_SOURCE: dict[str, str] = {
     "duplicate_invoice_number": "system",
     "revises_paid_invoice": "system",
     "possible_duplicate_billing": "system",
+    # about the rest of the inbox - other files, which the critic cannot see either
+    "superseded_by_sibling": "system",
+    "sibling_totals_differ": "system",
+    "sibling_file_same_number": "system",
+    "supersedes_unprocessed_sibling": "system",
     # about the run, not the invoice
+    "inbox_scan_failed": "system",
     "critique_unsupported": "system",
     "critic_unavailable": "system",
 }

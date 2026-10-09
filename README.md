@@ -144,7 +144,7 @@ and the run that most needs looking at is usually not the one you just did.
 uv run python -m pytest tests/ -q
 ```
 
-241 tests, under a second, no API key needed. No test calls a model and none touches `runs.db`
+273 tests, under a second, no API key needed. No test calls a model and none touches `runs.db`
 or `ledger.db`. CI runs them on every push with no key set, so a test that reaches for the
 network fails there instead of quietly spending money.
 
@@ -259,6 +259,16 @@ weigh, because it can see everything they are based on.
 The dashboard marks a row where this fires **gate overrode the approval**, because an auditor
 looking into a bad payment needs to see it without opening anything.
 
+**The rest of the inbox is read before anything is processed.** The ledger catches a
+superseded invoice, but only after the money has moved — in an earlier batch `invoice_1004`
+was paid at 1,890.00 and its revision was then correctly refused for superseding a paid
+invoice, leaving 1,890.00 to recover while the revision had been sitting in the same directory
+the whole time. A regex pre-scan now groups files by invoice number first, so the older version
+is held and the revision is the one that pays. Deliberately no model call: asking "is there
+another file here claiming to be this invoice" does not need judgment, and paying for one per
+sibling would make the check too expensive to run before every invoice. What it will not do is
+guess which of two conflicting documents is correct — it says they conflict and stops.
+
 **A failure stops the line; a finding does not.** An unreadable file or a refused extraction
 means the system could not do its job, so the run ends there — one step in the log, not six
 empty ones. A validation finding is the opposite: it is the thing the approval agent exists to
@@ -297,9 +307,10 @@ in the commit messages — they are written to be read.
   when a figure's citation is missing or does not match the document, that is a misread worth
   retrying, as distinct from an invoice that is genuinely wrong. The approval critic loop is
   built; this second one is not.
-- **No inbox pre-scan.** A revision that supersedes an unpaid invoice is only caught after the
-  earlier one is paid, by the ledger. Scanning the inbox before processing would prevent the
-  wrong payment instead of detecting it.
+- **Cross-format invoices are not compared field by field.** When two files claim the same
+  invoice number, the pre-scan compares their stated totals by regex and flags a mismatch for
+  a person. It does not extract both and reconcile them line by line, which would cost a model
+  call per sibling on every run.
 - **Scanned PDFs are refused, not read.** No OCR. The reader distinguishes a scan from a blank
   document and says which, because those need different responses.
 - **Currency is caught, never converted.** An invoice in another currency goes to a person. A

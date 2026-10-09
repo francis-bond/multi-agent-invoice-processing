@@ -8,6 +8,7 @@ import uuid
 from langgraph.graph import END, START, StateGraph
 
 import documents
+import inbox
 import interventions
 from critique import MAX_ROUNDS, as_feedback, critique, ground
 from extract import extract
@@ -15,7 +16,7 @@ from state import Flag, InvoiceState
 from validate import validate
 from approve import approve, needs_scrutiny
 from payment import gate, mock_payment
-from runlog import finish_run, start_run, write_step
+from runlog import finish_run, start_run, was_processed, write_step
 
 
 def ingest(state: InvoiceState) -> dict:
@@ -27,6 +28,32 @@ def ingest(state: InvoiceState) -> dict:
         return {"processing_error": str(exc)}
     except Exception as exc:
         return {"processing_error": f"could not read {state['source_path']}: {exc}"}
+
+
+def prescan_node(state: InvoiceState) -> dict:
+    """Look at the rest of the inbox before spending anything on this invoice.
+
+    Runs before extraction, and is pure regex and string comparison, so the cost of asking
+    "is there another file here claiming to be this invoice" stays low enough to ask every
+    time. The ledger already catches a superseded invoice, but only after the money has
+    moved: invoice_1004 was paid at 1,890.00 while its revision sat in the same directory.
+
+    Findings only. Which invoice gets processed is still decided by whoever runs the thing;
+    this makes sure the decision is an informed one.
+    """
+    if state.get("processing_error"):
+        return {}
+    try:
+        flags = inbox.precheck(
+            state["source_path"],
+            is_processed=was_processed,
+            text=state.get("raw_text"),
+        )
+    except Exception as exc:
+        # Reading the rest of the inbox is a convenience. If it fails, this invoice is still
+        # perfectly processable and the ledger remains the backstop.
+        return {"flags": [Flag(code="inbox_scan_failed", detail=str(exc), severity="warning")]}
+    return {"flags": flags} if flags else {}
 
 
 def extract_node(state: InvoiceState) -> dict:
@@ -220,6 +247,7 @@ def after_critique(state: InvoiceState) -> str:
 def build_graph():
     g = StateGraph(InvoiceState)
     g.add_node("ingest", ingest)
+    g.add_node("prescan", prescan_node)
     g.add_node("extract", extract_node)
     g.add_node("validate", validate_node)
     g.add_node("route", route_node)
@@ -231,7 +259,8 @@ def build_graph():
     # model that would not return the schema. Past those, a problem is a finding about the
     # invoice rather than a failure of ours, and findings must reach the approval agent.
     g.add_conditional_edges("ingest", still_running,
-                            {"continue": "extract", "stop": END})
+                            {"continue": "prescan", "stop": END})
+    g.add_edge("prescan", "extract")
     g.add_conditional_edges("extract", still_running,
                             {"continue": "validate", "stop": END})
     g.add_edge("validate", "route")

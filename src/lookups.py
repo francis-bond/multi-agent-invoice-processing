@@ -24,6 +24,10 @@ from langchain_core.tools import tool
 
 import inventory
 import ledger
+from pathlib import Path
+
+# Where invoices arrive. The pre-scan and this lookup both read it.
+DATA_DIR = Path(__file__).parent.parent / "data" / "invoices"
 # Which lookup bears on which finding. An objection about a system-derived finding has to be
 # backed by the matching lookup, or it is still an argument from silence.
 ANSWERED_BY: dict[str, str] = {
@@ -36,6 +40,10 @@ ANSWERED_BY: dict[str, str] = {
     "item_matched_loosely": "catalogue",
     "price_above_catalogue": "catalogue",
     "unknown_vendor": "supplier",
+    "superseded_by_sibling": "inbox",
+    "sibling_totals_differ": "inbox",
+    "sibling_file_same_number": "inbox",
+    "supersedes_unprocessed_sibling": "inbox",
 }
 
 
@@ -85,7 +93,29 @@ def supplier(name: str) -> str:
             f"change that; only someone adding them to it can.")
 
 
-TOOLS = [payment_history, catalogue, supplier]
+@tool
+def inbox(invoice_number: str) -> str:
+    """Look up other files in the inbox claiming the same invoice number.
+
+    Use this before objecting to a finding about a revision or a sibling file. You were given
+    one document; this tells you what else is sitting alongside it.
+    """
+    import inbox as inbox_mod
+
+    number = "".join(c for c in invoice_number if c.isdigit())
+    group = inbox_mod.scan(DATA_DIR).get(number, [])
+    if not group:
+        return (f"No files in the inbox claim invoice number {invoice_number}. Note that the "
+                f"document you were given may itself not be in that directory.")
+    lines = [f"{len(group)} file(s) in the inbox claim invoice number {invoice_number}:"]
+    for g in group:
+        total = f"{g['total']:,.2f}" if g["total"] is not None else "unreadable"
+        rev = f", marks itself a revision ({g['revision']})" if g["revision"] else ""
+        lines.append(f"  {g['name']}: stated total {total}{rev}")
+    return "\n".join(lines)
+
+
+TOOLS = [payment_history, catalogue, supplier, inbox]
 BY_NAME = {t.name: t for t in TOOLS}
 
 

@@ -114,6 +114,22 @@ def write_step(run_id: str, seq: int, node: str, detail: dict,
     conn.close()
 
 
+def was_processed(source_path: str, db_path: Path | None = None) -> bool:
+    """Has this file already been through the system to a conclusion?
+
+    Used by the inbox pre-scan to tell "there is a revision sitting here unprocessed" from
+    "the revision has already been dealt with". The second is the ledger's business.
+    """
+    db_path = db_path or DB_PATH
+    conn = _connect(db_path)
+    row = conn.execute(
+        "SELECT 1 FROM runs WHERE source_path=? AND outcome IS NOT NULL LIMIT 1",
+        (str(source_path),),
+    ).fetchone()
+    conn.close()
+    return row is not None
+
+
 def finish_run(state: dict, duration_ms: int, db_path: Path = DB_PATH) -> None:
     """Complete the row once the run ends. Only now does outcome stop being NULL."""
     inv = state.get("invoice")

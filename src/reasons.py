@@ -9,6 +9,12 @@ The goal is to say WHAT went wrong, not THAT something went wrong.
 
 # Short label per flag code. {field} style wording where the code names a specific field.
 LABELS: dict[str, str] = {
+    # the rest of the inbox - what else is sitting next to this invoice
+    "superseded_by_sibling": "A revision of this invoice is waiting unprocessed",
+    "sibling_totals_differ": "Another file claims this invoice number for a different amount",
+    "sibling_file_same_number": "Another file claims this invoice number",
+    "supersedes_unprocessed_sibling": "This replaces an older file still waiting",
+    "inbox_scan_failed": "The rest of the inbox could not be read",
     # duplicates and supersession - these decide payment on their own
     "duplicate_invoice_number": "Duplicate invoice number",
     "revises_paid_invoice": "Supersedes an invoice already paid",
@@ -49,6 +55,21 @@ LABELS: dict[str, str] = {
 # The case-specific half of remediation - what to do about THIS invoice given its particulars -
 # is a judgment call and comes from the approval agent's `recommended_action`.
 REMEDIATION: dict[str, str] = {
+    "superseded_by_sibling":
+        "Process the revision instead of this one. Nothing needs recovering yet, which is the "
+        "whole point of catching it here rather than after the payment.",
+    "sibling_totals_differ":
+        "Two files claim this invoice number for different amounts and neither says it "
+        "replaces the other. Ask the vendor which is current before paying either.",
+    "supersedes_unprocessed_sibling":
+        "This is the right version to process. Withdraw the superseded file from the "
+        "inbox so nobody picks it up later.",
+    "sibling_file_same_number":
+        "Probably the same invoice in two formats. Process one; the other will be refused as "
+        "a duplicate, which is the correct outcome.",
+    "inbox_scan_failed":
+        "No action on this invoice. The pre-scan could not read the directory, so a waiting "
+        "revision would not have been spotted - worth checking if it recurs.",
     "duplicate_invoice_number":
         "Establish which submission is the one to pay, then recover the earlier payment if "
         "this is a genuine repeat. Ask the vendor to void the duplicate.",
@@ -134,6 +155,8 @@ def remediation(flags: list[dict] | None) -> list[tuple[str, str]]:
 # Which finding an auditor should be told about first when several fired. A duplicate payment
 # is a cash-out-the-door problem; a missing due date is paperwork.
 PRIORITY = [
+    "superseded_by_sibling",
+    "sibling_totals_differ",
     "revises_paid_invoice",
     "duplicate_invoice_number",
     "possible_duplicate_billing",
@@ -151,6 +174,9 @@ PRIORITY = [
     "item_not_found",
     "item_on_multiple_lines",
     "item_matched_loosely",
+    "sibling_file_same_number",
+    "supersedes_unprocessed_sibling",
+    "inbox_scan_failed",
     "critic_unavailable",
     "critique_unsupported",
     "no_line_items",
@@ -165,6 +191,8 @@ PRIORITY = [
 # happens internally. These are different - money has already moved wrongly, or the denial
 # is one we caused and should review. They are the audit work queue.
 ACTION_REQUIRED = {
+    "superseded_by_sibling",     # process the revision instead, not this one
+    "sibling_totals_differ",     # two documents disagree and only a person can say which wins
     "foreign_currency",          # needs a person to price it; the system cannot
     "revises_paid_invoice",      # we paid a version that has since been superseded
     "possible_duplicate_billing",  # same vendor, same total, different number: a judgment call
@@ -206,7 +234,7 @@ def category(
 # in the needs-a-person signal, but never as the headline reason an invoice was not paid: "the
 # critic raised an objection it could not evidence" does not tell anyone why a vendor was
 # refused.
-SYSTEM_FLAGS = {"critique_unsupported", "critic_unavailable"}
+SYSTEM_FLAGS = {"critique_unsupported", "critic_unavailable", "inbox_scan_failed"}
 
 
 def label(code: str) -> str:
