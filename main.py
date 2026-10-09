@@ -14,6 +14,8 @@ sys.path.insert(0, "src")
 
 import interventions  # noqa: E402
 import inventory  # noqa: E402
+import llm  # noqa: E402
+from llm import MissingKeyError  # noqa: E402
 import resume as resume_mod  # noqa: E402
 from graph import process  # noqa: E402
 from reasons import category, headline, remediation  # noqa: E402
@@ -214,6 +216,10 @@ def main() -> None:
     # A fresh clone has no catalogue, so seed it rather than failing on "no such table".
     inventory.ensure()
 
+    # Checked before any work starts. Finding out after reading a file and opening a run that
+    # the key was never set makes a configuration problem look like a bad invoice.
+    llm.require_key()
+
     if args.resume:
         missing = [n for n in ("resolution", "actor", "justification")
                    if not getattr(args, n)]
@@ -227,4 +233,9 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except MissingKeyError as exc:
+        # Not an invoice problem and not a crash to read a stack trace for. Say what to do.
+        print(f"\n{exc}\n")
+        raise SystemExit(2)

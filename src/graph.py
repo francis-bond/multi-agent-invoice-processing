@@ -14,6 +14,7 @@ import interventions
 from citations import MAX_EXTRACTION_ATTEMPTS
 from critique import MAX_ROUNDS, as_feedback, critique, ground
 from extract import extract
+from llm import MissingKeyError
 from state import Flag, InvoiceState
 from validate import validate
 from approve import approve, needs_scrutiny
@@ -82,6 +83,10 @@ def extract_node(state: InvoiceState) -> dict:
             out["invoice"] = invoice
             out["corrections_applied"] = applied
         return out
+    except MissingKeyError:
+        # Not an invoice problem. Let it out rather than recording a run that says this
+        # invoice could not be processed, when nothing about the invoice is wrong.
+        raise
     except Exception as exc:
         return {"processing_error": f"extraction failed: {exc}"}
 
@@ -157,6 +162,10 @@ def approve_node(state: InvoiceState) -> dict:
             # silently re-send stale feedback.
             "approval_feedback": None,
         }
+    except MissingKeyError:
+        # Not an invoice problem. Let it out rather than recording a run that says this
+        # invoice could not be processed, when nothing about the invoice is wrong.
+        raise
     except Exception as exc:
         return {"processing_error": f"approval failed: {exc}"}
 
@@ -181,6 +190,8 @@ def critic_node(state: InvoiceState) -> dict:
             state.get("approval_reasoning", ""),
             state["raw_text"],
         )
+    except MissingKeyError:
+        raise
     except Exception as exc:
         # A critic that cannot run must not block payment on its own: the approval still
         # stands and the gate still applies. Record it and carry on.

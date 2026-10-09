@@ -33,6 +33,33 @@ DEFAULT_MODEL = "grok-4-1-fast"
 MAX_ATTEMPTS = int(os.environ.get("LLM_MAX_ATTEMPTS", "3"))
 
 
+class MissingKeyError(RuntimeError):
+    """No API key configured. The message is the first thing a new reader sees."""
+
+
+def _api_key() -> str:
+    """The key, or a message someone can act on.
+
+    Without this the first run on a fresh clone fails with a pydantic validation error and a
+    link to the pydantic docs, which tells someone nothing about what to do. The most likely
+    reader of that message is a person trying this repository for the first time.
+    """
+    key = (os.environ.get("XAI_API_KEY") or "").strip()
+    if not key:
+        raise MissingKeyError(
+            "No xAI API key found. Copy .env.example to .env and put your key in "
+            "XAI_API_KEY, or export it in your shell. Get one at https://console.x.ai - "
+            "new accounts get free credits and the whole sample set costs well under a "
+            "dollar. The test suite needs no key: uv run python -m pytest tests/ -q"
+        )
+    return key
+
+
+def require_key() -> None:
+    """Fail now, with something useful, rather than part-way through an invoice."""
+    _api_key()
+
+
 def chat(temperature: float = 0, tools: list | None = None) -> Runnable:
     """A model for a tool-calling loop, where the answer is not yet structured.
 
@@ -42,7 +69,7 @@ def chat(temperature: float = 0, tools: list | None = None) -> Runnable:
     """
     llm = ChatXAI(
         model=os.environ.get("XAI_MODEL", DEFAULT_MODEL),
-        api_key=os.environ["XAI_API_KEY"],
+        api_key=_api_key(),
         temperature=temperature,
     )
     if tools:
@@ -58,7 +85,7 @@ def client(schema: type, temperature: float = 0) -> Runnable:
     """
     llm = ChatXAI(
         model=os.environ.get("XAI_MODEL", DEFAULT_MODEL),
-        api_key=os.environ["XAI_API_KEY"],
+        api_key=_api_key(),
         temperature=temperature,
     )
     return llm.with_structured_output(schema).with_retry(stop_after_attempt=MAX_ATTEMPTS)
