@@ -47,6 +47,11 @@ class LineItem(BaseModel):
     item: str = Field(description="Item name exactly as written on the invoice, not corrected")
     quantity: int = Field(description="Quantity ordered. Negative if the invoice says negative.")
     unit_price: float = Field(description="Price per unit in the invoice's currency")
+    note: str | None = Field(
+        description="Any note or annotation attached to this line, copied as written - "
+                    "'Volume discount', 'Expedited', 'Sample', 'Replacement'. Null if the "
+                    "line carries none. Do not invent one."
+    )
     source_text: str = Field(
         description="The exact line this item was read from, copied verbatim"
     )

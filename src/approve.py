@@ -111,7 +111,9 @@ def approve(
     """
     model = model or _llm()
     items = "\n".join(
-        f"    {li.item} x{li.quantity} @ {li.unit_price}" for li in inv.line_items
+        f"    {li.item} x{li.quantity} @ {li.unit_price}"
+        + (f"   [note: {li.note}]" if li.note else "")
+        for li in inv.line_items
     ) or "    (none)"
     findings = "\n".join(
         f"  [{f['severity']}] {f['code']}: {f['detail']}" for f in flags
