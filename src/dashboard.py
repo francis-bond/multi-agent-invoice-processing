@@ -248,9 +248,8 @@ def build() -> Path:
 
         authorised = ""
         if action:
-            import json as _json
-            waived = _json.loads(action["waived"] or "[]")
-            corrections = _json.loads(action["corrections"] or "{}")
+            waived = json.loads(action["waived"] or "[]")
+            corrections = json.loads(action["corrections"] or "{}")
             bits = [f"<div class='reason'><strong>{esc(action['actor'])}</strong> &middot; "
                     f"{esc(action['resolution'])} &middot; {local(action['at'])}</div>",
                     f"<div class='reason'>&ldquo;{esc(action['justification'])}&rdquo;</div>"]

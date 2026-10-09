@@ -144,7 +144,7 @@ and the run that most needs looking at is usually not the one you just did.
 uv run python -m pytest tests/ -q
 ```
 
-166 tests plus 4 marking an open design question, under a second, no API key needed. No test calls a model and none touches `runs.db`
+241 tests, under a second, no API key needed. No test calls a model and none touches `runs.db`
 or `ledger.db`. CI runs them on every push with no key set, so a test that reaches for the
 network fails there instead of quietly spending money.
 
