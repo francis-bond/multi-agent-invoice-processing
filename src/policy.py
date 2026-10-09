@@ -15,3 +15,11 @@ HOME_CURRENCY = os.environ.get("HOME_CURRENCY", "USD").upper()
 # Above this, an invoice takes the scrutiny path regardless of how clean it looks. Denominated
 # in HOME_CURRENCY, which is why comparing a foreign total against it is meaningless.
 SCRUTINY_THRESHOLD = float(os.environ.get("SCRUTINY_THRESHOLD", "10000"))
+
+# How far above the catalogue price a line may be billed before it is flagged. A vendor may
+# legitimately charge a premium for a rush or a short run, so a small margin is allowed; what
+# this exists to catch is a unit price that bears no relation to what was agreed.
+#
+# Underpricing is never flagged. A discount is the vendor's business, and an invoice for less
+# than the agreed price is not a risk to us.
+PRICE_TOLERANCE = float(os.environ.get("PRICE_TOLERANCE", "0.10"))

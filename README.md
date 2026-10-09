@@ -155,6 +155,15 @@ Thresholds, routing, quote grounding and the pre-payment gate are deterministic.
 asking why an invoice was paid gets a rule and a line number, not a model's opinion. Extraction
 and approval reasoning are agents, because neither reduces to a rule.
 
+**The catalogue holds prices, not just stock.** Nothing else in the system notices a unit
+price: the arithmetic only checks the figures agree with each other, the stock check only cares
+about quantity, and the approval agent has no reference price to compare against. A WidgetA
+billed at 2,500.00 instead of 250.00 is internally consistent, within stock and from a known
+supplier — so without an agreed price on file it would simply have been paid. Only overcharges
+are flagged; a discount is the vendor's business. There is an approved supplier list for the
+same reason: paying a counterparty nobody approved is the failure an accounts payable control
+exists to prevent.
+
 **The agent never picks its own lane.** Code decides whether an invoice needs scrutiny. If a
 model could decide whether a control applied to it, it would not be a control.
 
@@ -213,7 +222,7 @@ in the commit messages — they are written to be read.
 
 ## Known gaps
 
-- **The gate does not block unknown or unstocked items.** It refuses on absolutes only. If the
+- **The gate does not block unknown items, overcharges or unapproved suppliers.** It refuses on absolutes only. If the
   approval agent ever approved an invoice for an item we do not stock, the payment would go
   through — in practice it rejects all of them. Whether materiality there is the agent's call
   or the gate's is an open design question, and `tests/test_acceptance.py` marks it `xfail`

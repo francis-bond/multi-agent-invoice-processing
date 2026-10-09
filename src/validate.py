@@ -8,8 +8,8 @@ five problems, not stop at the first one - the person reading the log wants the 
 """
 
 from models import ExtractedInvoice
-from policy import HOME_CURRENCY
-from inventory import canonical, resolve, strip_annotation
+from policy import HOME_CURRENCY, PRICE_TOLERANCE
+from inventory import canonical, resolve, strip_annotation, vendor_is_approved
 from ledger import prior_by_content, prior_by_number
 from state import Flag
 
@@ -189,6 +189,62 @@ def _sanity(inv: ExtractedInvoice) -> list[Flag]:
     return flags
 
 
+def _pricing(inv: ExtractedInvoice) -> list[Flag]:
+    """Is each line billed at something like the agreed price?
+
+    This closes the largest hole the system had. Nothing else notices a unit price: arithmetic
+    only checks that the figures agree with each other, the stock check only cares about
+    quantity, and the approval agent has no reference price to compare against. A WidgetA
+    billed at 2,500.00 instead of 250.00 is internally consistent, within stock, from a known
+    vendor, and would have been paid.
+
+    Only overcharges are flagged. A discount is the vendor's business and an invoice for less
+    than the agreed price is not a risk to us. The tolerance exists because a premium for a
+    rush or a short run is legitimate; what this catches is a price unrelated to the agreement.
+    """
+    flags: list[Flag] = []
+    for li in inv.line_items:
+        match = resolve(li.item)
+        if not match.found or match.unit_price is None:
+            continue  # an unknown item is already reported; there is no price to compare to
+        ceiling = match.unit_price * (1 + PRICE_TOLERANCE)
+        if li.unit_price > ceiling:
+            over = (li.unit_price / match.unit_price - 1) * 100 if match.unit_price else 0
+            flags.append(Flag(
+                code="price_above_catalogue",
+                detail=(f"{li.item!r} billed at {li.unit_price:,.2f} against an agreed "
+                        f"{match.unit_price:,.2f} for {match.item} - {over:,.0f}% over "
+                        f"({li.quantity} x {li.unit_price - match.unit_price:,.2f} = "
+                        f"{li.quantity * (li.unit_price - match.unit_price):,.2f} more "
+                        f"than agreed)"),
+                severity="error",
+            ))
+    return flags
+
+
+def _vendor(inv: ExtractedInvoice) -> list[Flag]:
+    """Is the payee someone we have approved?
+
+    Paying a counterparty nobody has approved is the failure an accounts payable control
+    exists to prevent. Held for a person rather than refused outright, because the supplier
+    list can be out of date and a new supplier is more likely than a fraudulent one - the
+    same reasoning as an unknown item. Never silent, though.
+
+    A missing vendor is already reported by the sanity checks, so this stays quiet about it
+    rather than reporting the same absence twice.
+    """
+    if not inv.vendor or not inv.vendor.strip():
+        return []
+    if vendor_is_approved(inv.vendor):
+        return []
+    return [Flag(
+        code="unknown_vendor",
+        detail=(f"{inv.vendor!r} is not on the approved supplier list; confirm the "
+                f"relationship before any payment is made"),
+        severity="error",
+    )]
+
+
 def _currency(inv: ExtractedInvoice) -> list[Flag]:
     """An invoice in a currency we cannot pay.
 
@@ -251,5 +307,5 @@ def _duplicates(inv: ExtractedInvoice) -> list[Flag]:
 
 
 def validate(inv: ExtractedInvoice) -> list[Flag]:
-    return (_existence_and_stock(inv) + _arithmetic(inv) + _sanity(inv)
-            + _currency(inv) + _duplicates(inv))
+    return (_existence_and_stock(inv) + _pricing(inv) + _arithmetic(inv) + _sanity(inv)
+            + _vendor(inv) + _currency(inv) + _duplicates(inv))

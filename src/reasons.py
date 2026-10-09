@@ -16,6 +16,9 @@ LABELS: dict[str, str] = {
     # arithmetic
     "total_mismatch": "Math inconsistency: line items do not sum to the stated total",
     "subtotal_mismatch": "Math inconsistency: stated subtotal does not match the line items",
+    # pricing and counterparty - money we never agreed to
+    "price_above_catalogue": "Billed above the agreed price",
+    "unknown_vendor": "Vendor is not on the approved supplier list",
     # inventory
     "item_not_found": "Unknown item: not in the product catalogue",
     "item_out_of_stock": "Item out of stock",
@@ -55,6 +58,14 @@ REMEDIATION: dict[str, str] = {
     "possible_duplicate_billing":
         "Same vendor, same total, different number. Check whether these are two real orders "
         "or one order billed twice, using the dates and any purchase order reference.",
+    "price_above_catalogue":
+        "Check the agreed price against the contract or purchase order. If the premium was "
+        "agreed, update the catalogue price; if it was not, ask the vendor to reissue at the "
+        "agreed rate.",
+    "unknown_vendor":
+        "Confirm this supplier is one we actually deal with before paying anything. If they "
+        "are legitimate and new, add them to the approved list; if not, this is the one to "
+        "escalate and not the one to pay.",
     "total_mismatch":
         "Ask the vendor to reissue with figures that reconcile. Do not pay the stated total: "
         "either the lines or the total is wrong and it is not ours to decide which.",
@@ -131,6 +142,8 @@ PRIORITY = [
     "negative_quantity",
     "negative_unit_price",
     "zero_quantity",
+    "unknown_vendor",
+    "price_above_catalogue",
     "total_mismatch",
     "subtotal_mismatch",
     "quantity_exceeds_stock",
@@ -155,6 +168,8 @@ ACTION_REQUIRED = {
     "foreign_currency",          # needs a person to price it; the system cannot
     "revises_paid_invoice",      # we paid a version that has since been superseded
     "possible_duplicate_billing",  # same vendor, same total, different number: a judgment call
+    "price_above_catalogue",     # someone has to decide whether the premium was agreed
+    "unknown_vendor",            # may be a new supplier, or may be nobody we deal with
     "item_not_found",            # may be our catalogue, not their invoice
 }
 

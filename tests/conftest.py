@@ -29,7 +29,7 @@ def make_invoice(
     total=None,
     charges=(),
     number="INV-TEST",
-    vendor="Test Vendor",
+    vendor="Widgets Inc.",   # on the approved supplier list, so it adds no flag of its own
     due_date="2026-02-01",
     revision=None,
     notes=None,
