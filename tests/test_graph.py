@@ -197,6 +197,45 @@ class TestTheCriticLoop:
         assert stub.paid == [750.0]
 
 
+class TestWhatStopsTheLineAndWhatDoesNot:
+    """The distinction is load-bearing and easy to "optimise" away.
+
+    A processing error means the system failed to do its job: stop, there is nothing to
+    decide. A validation finding means the invoice has a problem: that is precisely what the
+    approval agent exists to weigh, so it must reach it.
+    """
+
+    def test_a_validation_error_still_reaches_the_agent_the_critic_and_the_gate(
+            self, invoice_file, stub, seeded_inventory):
+        """Short-circuiting here would have been a disaster for invoice_1010.
+
+        total_mismatch would have ended the run before the critic could find the shipping
+        line that explained it, and the invoice would be permanently denied with no
+        reasoning, no critic transcript and nothing in the log saying why.
+        """
+        stub.invoice = make_invoice(items=[("WidgetC", 2, 250.0)], subtotal=500.0, total=500.0)
+        stub.decisions = [("reject", "unknown item")]
+
+        state = run(invoice_file)
+
+        assert "item_not_found" in flag_codes(state["flags"])
+        assert len(stub.approve_calls) == 1, "an error flag must still be judged"
+        assert stub.critic_calls == 1, "and the judgment must still be audited"
+        assert state["approval_reasoning"], "the log needs a reason, not just an outcome"
+        assert stub.paid == []
+
+    def test_a_processing_error_stops_immediately(self, tmp_path, stub):
+        """A dead run used to walk the whole graph returning {} from every remaining node.
+        Nothing was spent, but the step log filled with empty rows - noise in exactly the
+        record you read when something has broken."""
+        bad = tmp_path / "invoice.rtf"
+        bad.write_text("x")
+        state = run(str(bad))
+        assert state["processing_error"]
+        assert "flags" not in state or state["flags"] == []
+        assert state.get("needs_scrutiny") is None, "routing should never have run"
+
+
 class TestFailuresStopTheLine:
     def test_an_unreadable_file_does_not_reach_the_agents(self, tmp_path, stub):
         bad = tmp_path / "invoice.rtf"

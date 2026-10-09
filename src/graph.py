@@ -162,6 +162,26 @@ def payment_node(state: InvoiceState) -> dict:
     return {"payment_result": mock_payment(state["run_id"], inv)}
 
 
+def still_running(state: InvoiceState) -> str:
+    """Stop the line when the system has failed to do its job.
+
+    Every node already guards itself, so without this a dead run still walked the whole graph
+    returning {} from each remaining node. Nothing was spent and nothing moved, but the step
+    log filled with five empty rows - noise in exactly the record you read when something has
+    broken. A run that failed at ingest should show one step, not six.
+
+    Note what this does NOT do: a validation finding is not a failure and never stops the
+    line. A flag is something for the approval agent to weigh, and short-circuiting on one
+    would mean no decision, no reasoning and no critic. invoice_1010 would still be denied,
+    because total_mismatch would have ended the run before the critic could find the shipping
+    line that explained it.
+
+    The guard clauses stay regardless. They are what makes a node safe no matter which edge
+    reached it, and an edge is easier to get wrong than a guard.
+    """
+    return "stop" if state.get("processing_error") else "continue"
+
+
 def after_approval(state: InvoiceState) -> str:
     """Code decides whether this decision gets audited. The agent never opts out.
 
@@ -192,8 +212,13 @@ def build_graph():
     g.add_node("critic", critic_node)
     g.add_node("payment", payment_node)
     g.add_edge(START, "ingest")
-    g.add_edge("ingest", "extract")
-    g.add_edge("extract", "validate")
+    # Ingest and extract are the two nodes that can fail outright: an unreadable file, or a
+    # model that would not return the schema. Past those, a problem is a finding about the
+    # invoice rather than a failure of ours, and findings must reach the approval agent.
+    g.add_conditional_edges("ingest", still_running,
+                            {"continue": "extract", "stop": END})
+    g.add_conditional_edges("extract", still_running,
+                            {"continue": "validate", "stop": END})
     g.add_edge("validate", "route")
     g.add_edge("route", "approve")
     g.add_conditional_edges("approve", after_approval,

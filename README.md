@@ -100,7 +100,7 @@ and the run that most needs looking at is usually not the one you just did.
 uv run python -m pytest tests/ -q
 ```
 
-164 tests plus 4 marking an open design question, under a second, no API key needed. No test calls a model and none touches `runs.db`
+166 tests plus 4 marking an open design question, under a second, no API key needed. No test calls a model and none touches `runs.db`
 or `ledger.db`. CI runs them on every push with no key set, so a test that reaches for the
 network fails there instead of quietly spending money.
 
@@ -174,6 +174,13 @@ a confidently-worded invention cannot force a revision.
 refuses to let certain conditions reach a transfer whatever anyone upstream concluded — and it
 consults the payments ledger itself rather than trusting that nothing earlier missed a
 duplicate.
+
+**A failure stops the line; a finding does not.** An unreadable file or a refused extraction
+means the system could not do its job, so the run ends there — one step in the log, not six
+empty ones. A validation finding is the opposite: it is the thing the approval agent exists to
+weigh, so it travels all the way to the gate. Short-circuiting on a finding would have left
+invoice_1010 permanently denied, because its arithmetic mismatch would have ended the run
+before the critic could find the shipping line that explained it.
 
 **A deadlock is not a rejection.** When the critic and the approver cannot settle an invoice
 within the round limit, it is escalated: neither paid nor refused, filed for a person with the
