@@ -217,9 +217,6 @@ and both escalate to a person rather than guessing.
   duplicates, and decides the approval lane
 - **gate** refuses anything our own records contradict, whatever the approval said
 
-Blue is code, amber is an agent. Routing is folded into the edge out of `validate`: it is one
-line deciding which lane, not a stage of its own.
-
 Thresholds, routing, quote grounding and the pre-payment gate are deterministic. An auditor
 asking why an invoice was paid gets a rule and a line number, not a model's opinion. Extraction
 and approval reasoning are agents, because neither reduces to a rule.
