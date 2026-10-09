@@ -36,6 +36,80 @@ LABELS: dict[str, str] = {
     "negative_total": "Invalid value: negative total",
 }
 
+# What a person should actually do about each finding. Static, because for a given finding the
+# answer does not vary by invoice: a duplicate invoice number always means establish which one
+# is correct and recover any earlier payment. Asking a model to regenerate this each run would
+# buy nothing but inconsistency, and two auditors reading the same finding would be told
+# different things.
+#
+# The case-specific half of remediation - what to do about THIS invoice given its particulars -
+# is a judgment call and comes from the approval agent's `recommended_action`.
+REMEDIATION: dict[str, str] = {
+    "duplicate_invoice_number":
+        "Establish which submission is the one to pay, then recover the earlier payment if "
+        "this is a genuine repeat. Ask the vendor to void the duplicate.",
+    "revises_paid_invoice":
+        "The earlier version was already paid. Work out the balance owed on the revision, "
+        "recover the overpayment or pay the difference, and confirm the revision is authorised.",
+    "possible_duplicate_billing":
+        "Same vendor, same total, different number. Check whether these are two real orders "
+        "or one order billed twice, using the dates and any purchase order reference.",
+    "total_mismatch":
+        "Ask the vendor to reissue with figures that reconcile. Do not pay the stated total: "
+        "either the lines or the total is wrong and it is not ours to decide which.",
+    "subtotal_mismatch":
+        "Ask the vendor to confirm the subtotal against their own line items before paying.",
+    "item_not_found":
+        "Check the item against the catalogue under its other names. If it is genuinely not "
+        "something we stock, ask the vendor for the purchase order it was ordered against.",
+    "item_out_of_stock":
+        "Confirm with receiving whether these goods actually arrived. Stock shows none on hand.",
+    "quantity_exceeds_stock":
+        "Confirm the quantity delivered with receiving. Pay for what was received, and ask the "
+        "vendor to credit the difference.",
+    "item_on_multiple_lines":
+        "Normal for discounts and expedites, but check the lines are separate deliveries and "
+        "not the same goods billed twice.",
+    "item_matched_loosely":
+        "Confirm the qualifier on the item name carries no price change, then update the "
+        "catalogue if this spelling is one the vendor uses regularly.",
+    "missing_vendor":
+        "Identify the vendor from the document or the purchase order before paying anyone.",
+    "missing_invoice_number":
+        "Ask the vendor for an invoice number. Without one, duplicate detection cannot work.",
+    "missing_due_date":
+        "Confirm the payment terms with the vendor so this is not paid late or early.",
+    "no_line_items":
+        "Ask the vendor to reissue itemised. There is nothing here to check against inventory.",
+    "negative_quantity":
+        "Almost certainly a credit note submitted as an invoice. Ask the vendor to confirm "
+        "and resubmit it as a credit.",
+    "zero_quantity":
+        "Ask the vendor whether the line should be removed or carries a quantity.",
+    "negative_unit_price":
+        "Ask the vendor to resubmit. A negative price belongs in a credit note.",
+    "negative_total":
+        "This is a credit, not an invoice. Route it to the credits process rather than paying it.",
+    "critique_unsupported":
+        "No action on the invoice. The review agent raised an objection it could not evidence, "
+        "which is worth noting if it recurs.",
+    "critic_unavailable":
+        "The approval audit did not run. Re-run this invoice once the model is reachable.",
+}
+
+
+def remediation(flags: list[dict] | None) -> list[tuple[str, str]]:
+    """What to do about each finding, worst first, de-duplicated by finding type."""
+    seen, out = set(), []
+    for f in sorted(flags or [], key=lambda f: rank(f["code"])):
+        code = f["code"]
+        if code in seen or code not in REMEDIATION:
+            continue
+        seen.add(code)
+        out.append((label(code), REMEDIATION[code]))
+    return out
+
+
 # Which finding an auditor should be told about first when several fired. A duplicate payment
 # is a cash-out-the-door problem; a missing due date is paperwork.
 PRIORITY = [

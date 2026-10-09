@@ -15,7 +15,7 @@ import webbrowser
 from datetime import datetime, timezone
 from pathlib import Path
 
-from reasons import category, headline
+from reasons import category, headline, remediation
 from runlog import DB_PATH
 
 OUT = Path(__file__).parent.parent / "dashboard.html"
@@ -59,6 +59,9 @@ tr.needs td{box-shadow:inset 3px 0 var(--warn)}
 .detail h4{margin:0 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--dim)}
 .detail .block{margin-bottom:14px}
 .flag{padding:3px 0;font-variant-numeric:tabular-nums}
+.step{padding:5px 0;max-width:84ch;line-height:1.45}
+.step code{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.04em;
+           color:var(--dim);margin-bottom:1px;font-family:inherit}
 .flag code{background:var(--card);border:1px solid var(--line);border-radius:4px;
            padding:1px 6px;font-size:12px;margin-right:8px}
 .sev-error code{color:var(--deny)}
@@ -223,6 +226,20 @@ def build() -> Path:
             blocked = (f"<div class='block'><h4>Blocked by the payment gate</h4>"
                        f"<div class='reason'>The approval review said approve. The gate "
                        f"refused anyway: {esc(r['blocked_reason'])}</div></div>")
+        # What to do next, in two halves. The agent's line is specific to this invoice; the
+        # static list is what any invoice with these findings needs. Both, because the
+        # specific one can be wrong and the static one can be insufficient.
+        steps = remediation(flags)
+        todo = ""
+        if r["recommended_action"] or steps:
+            parts = []
+            if r["recommended_action"]:
+                parts.append(f"<div class='reason'><strong>{esc(r['recommended_action'])}"
+                             f"</strong></div>")
+            for name, advice in steps:
+                parts.append(f"<div class='step'><code>{esc(name)}</code>{esc(advice)}</div>")
+            todo = ("<div class='block'><h4>What to do next</h4>" + "".join(parts) + "</div>")
+
         escalated = ""
         if r["escalation_reason"]:
             escalated = (f"<div class='block'><h4>Escalated</h4>"
@@ -250,7 +267,7 @@ def build() -> Path:
       critic revisions: {r['critique_rounds'] or 0}</div>
   {escalated}
   <div class="block"><h4>Findings ({len(flags)})</h4>{fhtml}</div>
-  {reason}{blocked}{err}{stopped}
+  {reason}{todo}{blocked}{err}{stopped}
 </td></tr>""")
 
     body = "".join(rows) or "<tr><td colspan='8' class='empty'>No runs recorded yet.</td></tr>"

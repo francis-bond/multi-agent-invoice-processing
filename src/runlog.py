@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS runs (
     outcome          TEXT,     -- paid | rejected | escalated | failed
     decision         TEXT,     -- approve | reject
     reasoning        TEXT,     -- recorded both ways, not only on rejection
+    recommended_action TEXT,   -- the agent's case-specific next step
     blocked_reason   TEXT,     -- why the gate refused, if it did
     processing_error TEXT,     -- the system failed, as opposed to the invoice being bad
     needs_scrutiny   INTEGER,
@@ -129,7 +130,8 @@ def finish_run(state: dict, duration_ms: int, db_path: Path = DB_PATH) -> None:
     conn = _connect(db_path)
     conn.execute(
         """UPDATE runs SET duration_ms=?, invoice_number=?, vendor=?, total=?, currency=?,
-                           outcome=?, decision=?, reasoning=?, blocked_reason=?,
+                           outcome=?, decision=?, reasoning=?, recommended_action=?,
+                           blocked_reason=?,
                            processing_error=?, needs_scrutiny=?, flag_count=?,
                            critique_rounds=?, escalation_reason=?
            WHERE run_id=?""",
@@ -142,6 +144,7 @@ def finish_run(state: dict, duration_ms: int, db_path: Path = DB_PATH) -> None:
             outcome,
             state.get("approval_decision"),
             state.get("approval_reasoning"),
+            state.get("approval_action"),
             state.get("rejection_reason"),
             state.get("processing_error"),
             int(bool(state.get("needs_scrutiny"))),

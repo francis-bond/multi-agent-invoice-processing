@@ -36,6 +36,11 @@ class ApprovalDecision(BaseModel):
         description="Two or three sentences. Name the specific flags or amounts that drove "
                     "this, so a human reading the log understands the call without re-deriving it."
     )
+    recommended_action: str = Field(
+        description="One sentence on what a person should do next about THIS invoice, naming "
+                    "the figure, item or party involved. Who to contact and about what. On an "
+                    "approval say what to watch rather than inventing work."
+    )
 
 
 APPROVAL_PROMPT = """You are reviewing a vendor invoice on behalf of Acme Corp's accounts payable team.
@@ -73,7 +78,11 @@ INVOICE
 VALIDATION FINDINGS
 {flags}
 
-Give a decision and the reasoning behind it."""
+Give a decision, the reasoning behind it, and what a person should do next.
+
+Generic advice is not useful. "Contact the vendor" could be said of any invoice. Name the
+amount, the item or the party: "ask Atlas Industrial to reissue with the 50.00 discrepancy
+resolved" tells someone what to pick up."""
 
 REVISION_NOTE = """
 YOUR PREVIOUS DECISION WAS CHALLENGED

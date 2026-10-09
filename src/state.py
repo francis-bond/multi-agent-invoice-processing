@@ -49,6 +49,7 @@ class InvoiceState(TypedDict, total=False):
     needs_scrutiny: bool
     approval_decision: Literal["approve", "reject"] | None
     approval_reasoning: str | None
+    approval_action: str | None        # what the agent says a person should do next
 
     # --- the approval critic loop --------------------------------------------
     critique_rounds: int              # revisions requested so far, not critiques run

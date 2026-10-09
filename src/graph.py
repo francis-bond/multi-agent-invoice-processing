@@ -72,6 +72,7 @@ def approve_node(state: InvoiceState) -> dict:
         return {
             "approval_decision": d.decision,
             "approval_reasoning": d.reasoning,
+            "approval_action": d.recommended_action,
             "prompts": {**state.get("prompts", {}), key: prompt},
             # Clear the complaint once it has been answered, so a later round cannot
             # silently re-send stale feedback.
