@@ -217,13 +217,24 @@ def process(source_path: str, log: bool = True) -> InvoiceState:
     if log:
         start_run(initial["run_id"], source_path)
 
+    # Two stream modes, deliberately. "updates" gives what each node produced, which is what
+    # the step log should record. "values" gives the accumulated state with the channel
+    # reducers applied.
+    #
+    # Rebuilding state here with dict.update() instead was a real bug: `flags` declares an
+    # append reducer, but a plain dict.update overwrites it. While `validate` was the only
+    # node writing flags that was invisible; as soon as `critic` also wrote one, it erased
+    # every validation finding from the run log. Reducers belong to the graph, not to a
+    # hand-rolled copy of its state.
     seq = 0
-    for update in graph.stream(initial, stream_mode="updates"):
-        for node, produced in update.items():
-            if log:
-                write_step(initial["run_id"], seq, node, produced or {})
-            seq += 1
-            state.update(produced or {})
+    for mode, chunk in graph.stream(initial, stream_mode=["updates", "values"]):
+        if mode == "updates":
+            for node, produced in chunk.items():
+                if log:
+                    write_step(initial["run_id"], seq, node, produced or {})
+                seq += 1
+        elif mode == "values":
+            state = chunk
 
     if log:
         finish_run(state, int((time.perf_counter() - started) * 1000))
