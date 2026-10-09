@@ -1,16 +1,13 @@
 """Slice 1: read one invoice, ask Grok for structured fields, print the result."""
 
 import argparse
-import os
 from pathlib import Path
 
-from dotenv import load_dotenv
 from langchain_core.runnables import Runnable
-from langchain_xai import ChatXAI
 
+from llm import client
 from models import ExtractedInvoice
 
-load_dotenv()
 
 EXTRACTION_PROMPT = """You are extracting data from a vendor invoice for an accounts payable system.
 
@@ -75,12 +72,7 @@ Invoice document:
 
 def grok() -> Runnable:
     """The real client. Separated so tests can substitute something else."""
-    llm = ChatXAI(
-        model=os.environ.get("XAI_MODEL", "grok-4-1-fast"),
-        api_key=os.environ["XAI_API_KEY"],
-        temperature=0,
-    )
-    return llm.with_structured_output(ExtractedInvoice)
+    return client(ExtractedInvoice)
 
 
 def extract(document_text: str, model: Runnable | None = None) -> tuple[ExtractedInvoice, str]:

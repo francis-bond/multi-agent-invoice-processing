@@ -8,12 +8,10 @@ Approval is an agent, because "these three flags are all warnings on a small inv
 known vendor" is a judgment that does not reduce to a rule.
 """
 
-import os
-
 from langchain_core.runnables import Runnable
-from langchain_xai import ChatXAI
 from pydantic import BaseModel, Field
 
+from llm import client
 from models import ExtractedInvoice
 from policy import HOME_CURRENCY, SCRUTINY_THRESHOLD
 from state import Flag
@@ -104,12 +102,7 @@ does not change it. Do not simply repeat your previous reasoning.
 
 
 def _llm() -> Runnable:
-    llm = ChatXAI(
-        model=os.environ.get("XAI_MODEL", "grok-4-1-fast"),
-        api_key=os.environ["XAI_API_KEY"],
-        temperature=0,
-    )
-    return llm.with_structured_output(ApprovalDecision)
+    return client(ApprovalDecision)
 
 
 def approve(

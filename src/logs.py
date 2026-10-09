@@ -13,7 +13,18 @@ import sys
 
 from runlog import DB_PATH
 
-OUTCOME_MARK = {"paid": "PAID", "rejected": "DENIED", "failed": "ERROR", None: "INCOMPLETE"}
+OUTCOME_MARK = {"paid": "PAID", "rejected": "DENIED", "escalated": "ESCALATED",
+                "failed": "ERROR", None: "INCOMPLETE"}
+
+
+def mark(outcome: str | None) -> str:
+    """Never crash the log viewer over an outcome it has not been taught.
+
+    This was a bare dict lookup, so the first escalated run - an outcome the graph has been
+    able to produce since the critic loop landed - would have raised KeyError here. A viewer
+    that dies on an unfamiliar value is useless at exactly the moment something new happened.
+    """
+    return OUTCOME_MARK.get(outcome, (outcome or "UNKNOWN").upper())
 
 
 def list_runs() -> None:
@@ -29,13 +40,13 @@ def list_runs() -> None:
     for r in rows:
         print(f"{r['run_id']:9} {str(r['invoice_number'] or '-')[:10]:10} "
               f"{str(r['vendor'] or '-')[:26]:26} {r['total'] or 0:>10,.2f}  "
-              f"{OUTCOME_MARK[r['outcome']]:10} {r['flag_count'] or 0:>5}  {r['duration_ms'] or 0:>6}")
+              f"{mark(r['outcome']):10} {r['flag_count'] or 0:>5}  {r['duration_ms'] or 0:>6}")
 
     print()
     for outcome, n, amt in conn.execute(
         "SELECT outcome, COUNT(*), SUM(total) FROM runs GROUP BY outcome"
     ):
-        print(f"  {OUTCOME_MARK[outcome]:10} {n:3}   {amt or 0:>14,.2f}")
+        print(f"  {mark(outcome):10} {n:3}   {amt or 0:>14,.2f}")
 
 
 def show_run(run_id: str) -> None:
@@ -50,7 +61,7 @@ def show_run(run_id: str) -> None:
     print(f"  source    {r['source_path']}")
     print(f"  invoice   {r['invoice_number']}  from {r['vendor']}  for {r['total']:,.2f}"
           if r['total'] is not None else f"  invoice   {r['invoice_number']}  from {r['vendor']}")
-    print(f"  outcome   {OUTCOME_MARK[r['outcome']]}"
+    print(f"  outcome   {mark(r['outcome'])}"
           + ("   (run did not complete)" if r['outcome'] is None else ""))
     if r["processing_error"]:
         print(f"  error     {r['processing_error']}")

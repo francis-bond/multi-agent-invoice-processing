@@ -175,6 +175,15 @@ refuses to let certain conditions reach a transfer whatever anyone upstream conc
 consults the payments ledger itself rather than trusting that nothing earlier missed a
 duplicate.
 
+It has earned its place. On a run of an already-paid `invoice_1001`, validation flagged the
+duplicate, the critic argued the duplicate was impossible — *"the invoice is dated 2026-01-15,
+the alleged payment was 2026-10-09"* — and the approval agent was persuaded and approved it. The
+critic was wrong: it had confused the invoice's business date with the payment date, and a
+January invoice paid in October is ordinary. Both agents agreed on a second payment of 5,000.00,
+and the gate refused it on a ledger lookup. The dashboard marks that row **gate overrode the
+approval**, because an auditor looking into a bad payment needs to see it without opening
+anything.
+
 **A failure stops the line; a finding does not.** An unreadable file or a refused extraction
 means the system could not do its job, so the run ends there — one step in the log, not six
 empty ones. A validation finding is the opposite: it is the thing the approval agent exists to

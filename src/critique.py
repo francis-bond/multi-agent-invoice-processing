@@ -26,9 +26,9 @@ import os
 import re
 
 from langchain_core.runnables import Runnable
-from langchain_xai import ChatXAI
 from pydantic import BaseModel, Field
 
+from llm import client
 from models import ExtractedInvoice
 from state import Flag
 
@@ -112,12 +112,7 @@ THE SOURCE DOCUMENT
 
 
 def _llm() -> Runnable:
-    llm = ChatXAI(
-        model=os.environ.get("XAI_MODEL", "grok-4-1-fast"),
-        api_key=os.environ["XAI_API_KEY"],
-        temperature=0,
-    )
-    return llm.with_structured_output(Critique)
+    return client(Critique)
 
 
 def _normalise(text: str) -> str:
