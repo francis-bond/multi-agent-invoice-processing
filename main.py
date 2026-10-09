@@ -33,6 +33,15 @@ def main() -> None:
         for f in flags:
             print(f"    [{f['severity']:7}] {f['code']:24} {f['detail']}")
 
+    print(f"  scrutiny: {'yes' if result.get('needs_scrutiny') else 'no'}")
+    if result.get("approval_decision"):
+        print(f"  decision: {result['approval_decision']}")
+        print(f"    {result['approval_reasoning']}")
+    if result.get("rejection_reason"):
+        print(f"  NOT PAID: {result['rejection_reason']}")
+    elif result.get("payment_result"):
+        print(f"  paid: {result['payment_result']['status']}")
+
 
 if __name__ == "__main__":
     main()
