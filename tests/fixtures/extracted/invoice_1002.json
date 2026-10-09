@@ -6,7 +6,7 @@
     "vendor": "Gadgets Co.",
     "issue_date": "2026-01-30",
     "due_date": "2026-01-30",
-    "currency": null,
+    "currency": "USD",
     "revision": null,
     "notes": "Pymnt Terms: Net 30",
     "line_items": [
@@ -15,7 +15,7 @@
         "quantity": 20,
         "unit_price": 750.0,
         "note": null,
-        "source_text": "  GadgetX  qty 20   @ $750 ea"
+        "source_text": "GadgetX  qty 20   @ $750 ea"
       }
     ],
     "charges": [],

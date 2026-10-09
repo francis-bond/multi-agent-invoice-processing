@@ -8,7 +8,7 @@
     "due_date": "2026-03-24",
     "currency": "USD",
     "revision": null,
-    "notes": "Net 60",
+    "notes": null,
     "line_items": [
       {
         "item": "WidgetA",

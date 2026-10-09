@@ -40,6 +40,8 @@ def stub(monkeypatch):
             self.approve_calls = []
             self.waivers_seen = []
             self.lookups = []
+            self.extract_calls = []
+            self.citation_problems = []
             self.critic_calls = 0
             self.paid = []
 
@@ -53,7 +55,15 @@ def stub(monkeypatch):
 
     s = Stub()
 
-    monkeypatch.setattr(graph, "extract", lambda text, model=None: (s.invoice, "extract prompt"))
+    def fake_extract(text, model=None, feedback=None):
+        s.extract_calls.append(feedback)
+        return s.invoice, "extract prompt"
+
+    monkeypatch.setattr(graph, "extract", fake_extract)
+    # Citation verification is exercised in test_citations.py against real documents. Here it
+    # would reject the stub invoice's placeholder citations and escalate every test, so it is
+    # driven directly instead and the graph tests stay about control flow.
+    monkeypatch.setattr(graph.citations, "verify", lambda inv, doc: list(s.citation_problems))
     def fake_approve(inv, flags, scrutiny, model=None, feedback=None, waiver=None):
         s.approve_calls.append(feedback)
         s.waivers_seen.append(waiver)
@@ -106,6 +116,58 @@ class TestFlagsSurviveToTheEnd:
         codes = flag_codes(state["flags"])
         assert "quantity_exceeds_stock" in codes, "validation findings must survive"
         assert "critique_unsupported" in codes, "the critic's own finding must survive too"
+
+
+class TestTheExtractionSelfCorrectionLoop:
+    """A citation that is not in the document means we misread it, and retrying can fix that.
+    A citation that holds means we read faithfully, so a figure that still does not reconcile
+    is the vendor's problem and retrying would return the same answer forever.
+    """
+
+    def test_verified_citations_carry_straight_on(self, invoice_file, stub, seeded_inventory):
+        run(invoice_file)
+        assert len(stub.extract_calls) == 1
+        assert stub.extract_calls[0] is None, "a first attempt carries no complaint"
+
+    def test_a_bad_citation_forces_an_informed_retry(self, invoice_file, stub,
+                                                     seeded_inventory):
+        # Fails once, then checks out, which is what a successful self-correction looks like.
+        problems = iter([["total cites text that is not in the document"], []])
+        import graph
+        from unittest.mock import patch
+        with patch.object(graph.citations, "verify",
+                          side_effect=lambda inv, doc: next(problems, [])):
+            state = run(invoice_file)
+
+        assert len(stub.extract_calls) == 2, "it should have another go"
+        assert stub.extract_calls[0] is None
+        assert "not in the document" in stub.extract_calls[1], \
+            "the retry has to know what was wrong, or it asks the same question again"
+        assert state.get("escalation_reason") is None
+        assert stub.paid == [525.0], "a corrected extraction proceeds normally"
+
+    def test_an_unfixable_citation_escalates_rather_than_failing(self, invoice_file, stub,
+                                                                 seeded_inventory):
+        """A person can read the document and say what it says, which is what the `misread`
+        resolution exists for. That is a different thing from the system being broken."""
+        stub.citation_problems = ["total cites text that is not in the document"]
+        state = run(invoice_file)
+
+        from citations import MAX_EXTRACTION_ATTEMPTS
+        assert len(stub.extract_calls) == MAX_EXTRACTION_ATTEMPTS
+        assert state.get("escalation_reason")
+        assert "could not be verified" in state["escalation_reason"]
+        assert state.get("processing_error") is None, "unreadable figures are not a crash"
+        assert stub.paid == []
+
+    def test_an_unverifiable_extraction_never_reaches_approval(self, invoice_file, stub,
+                                                               seeded_inventory):
+        """There is nothing to approve. Judging figures we cannot trace to the document would
+        be the agent deciding on evidence nobody has checked."""
+        stub.citation_problems = ["nothing traces back"]
+        run(invoice_file)
+        assert stub.approve_calls == []
+        assert stub.critic_calls == 0
 
 
 class TestRouting:

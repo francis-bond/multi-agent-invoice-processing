@@ -7,9 +7,11 @@ import time
 import uuid
 from langgraph.graph import END, START, StateGraph
 
+import citations
 import documents
 import inbox
 import interventions
+from citations import MAX_EXTRACTION_ATTEMPTS
 from critique import MAX_ROUNDS, as_feedback, critique, ground
 from extract import extract
 from state import Flag, InvoiceState
@@ -61,11 +63,15 @@ def extract_node(state: InvoiceState) -> dict:
     if state.get("processing_error"):
         return {}
     try:
-        invoice, prompt = extract(state["raw_text"])
+        attempt = state.get("extraction_attempts", 0)
+        invoice, prompt = extract(state["raw_text"], feedback=state.get("extraction_feedback"))
         out = {
             "invoice": invoice,
-            "extraction_attempts": state.get("extraction_attempts", 0) + 1,
-            "prompts": {**state.get("prompts", {}), "extract": prompt},
+            "extraction_attempts": attempt + 1,
+            "prompts": {**state.get("prompts", {}),
+                        f"extract_{attempt}" if attempt else "extract": prompt},
+            # Cleared once answered, so a later attempt cannot re-send a stale complaint.
+            "extraction_feedback": None,
         }
         # A person's corrections go on here, not before: re-extracting the same document
         # reproduces the same misreading. Everything from validation onward then runs against
@@ -78,6 +84,39 @@ def extract_node(state: InvoiceState) -> dict:
         return out
     except Exception as exc:
         return {"processing_error": f"extraction failed: {exc}"}
+
+
+def verify_citations_node(state: InvoiceState) -> dict:
+    """Check every extracted figure against the text it claims to come from. Code, not an agent.
+
+    This is what separates "we misread the document" from "the invoice is wrong", and those
+    need opposite responses. A citation that is not in the document means another attempt is
+    worth making. A citation that holds means the extractor read faithfully, so a figure that
+    still does not reconcile is the vendor's problem and retrying would return the same answer
+    forever.
+    """
+    if state.get("processing_error") or not state.get("invoice"):
+        return {}
+
+    problems = citations.verify(state["invoice"], state["raw_text"])
+    if not problems:
+        return {}
+
+    attempts = state.get("extraction_attempts", 1)
+    if attempts >= MAX_EXTRACTION_ATTEMPTS:
+        # Out of attempts, and the values cannot be traced to the document. Escalating rather
+        # than failing, because a person can read the document and say what it actually says -
+        # which is exactly what the `misread` resolution is for.
+        return {
+            "citation_problems": problems,
+            "escalation_reason": (
+                f"extraction could not be verified against the document after {attempts} "
+                f"attempts: {problems[0]}"
+            ),
+        }
+
+    return {"citation_problems": problems,
+            "extraction_feedback": citations.as_feedback(problems)}
 
 
 def validate_node(state: InvoiceState) -> dict:
@@ -224,6 +263,15 @@ def still_running(state: InvoiceState) -> str:
     return "stop" if state.get("processing_error") else "continue"
 
 
+def after_citations(state: InvoiceState) -> str:
+    """Retry, give up, or carry on. All three decided in code."""
+    if state.get("processing_error"):
+        return "stop"
+    if state.get("escalation_reason"):
+        return "stop"
+    return "retry" if state.get("extraction_feedback") else "continue"
+
+
 def after_approval(state: InvoiceState) -> str:
     """Code decides whether this decision gets audited. The agent never opts out.
 
@@ -249,6 +297,7 @@ def build_graph():
     g.add_node("ingest", ingest)
     g.add_node("prescan", prescan_node)
     g.add_node("extract", extract_node)
+    g.add_node("verify_citations", verify_citations_node)
     g.add_node("validate", validate_node)
     g.add_node("route", route_node)
     g.add_node("approve", approve_node)
@@ -262,7 +311,9 @@ def build_graph():
                             {"continue": "prescan", "stop": END})
     g.add_edge("prescan", "extract")
     g.add_conditional_edges("extract", still_running,
-                            {"continue": "validate", "stop": END})
+                            {"continue": "verify_citations", "stop": END})
+    g.add_conditional_edges("verify_citations", after_citations,
+                            {"retry": "extract", "continue": "validate", "stop": END})
     g.add_edge("validate", "route")
     g.add_edge("route", "approve")
     g.add_conditional_edges("approve", after_approval,

@@ -144,7 +144,7 @@ and the run that most needs looking at is usually not the one you just did.
 uv run python -m pytest tests/ -q
 ```
 
-273 tests, under a second, no API key needed. No test calls a model and none touches `runs.db`
+302 tests, under a second, no API key needed. No test calls a model and none touches `runs.db`
 or `ledger.db`. CI runs them on every push with no key set, so a test that reaches for the
 network fails there instead of quietly spending money.
 
@@ -166,18 +166,24 @@ and what survives into the final state.
 ```mermaid
 flowchart TD
     ingest["<b>ingest</b> — code<br/>file to text, one reader per format"]
+    prescan["<b>prescan</b> — code<br/>what else in the inbox<br/>claims this invoice?"]
     extract["<b>extract</b> — AGENT<br/>structured fields, each cited"]
-    validate["<b>validate</b> — code<br/>stock, arithmetic, duplicates, currency"]
+    cite{"<b>verify citations</b> — code<br/>is the cited text really<br/>in the document?"}
+    validate["<b>validate</b> — code<br/>stock, prices, suppliers,<br/>arithmetic, duplicates, currency"]
     route["<b>route</b> — code<br/>sets the lane: amount or any flag"]
     approve["<b>approve</b> — AGENT<br/>should this be paid?"]
-    critic["<b>critic</b> — AGENT<br/>audit that reasoning<br/>against the document"]
-    ground{"<b>grounded?</b> — code<br/>is the quote really<br/>in the document?"}
+    critic["<b>critic</b> — AGENT + tools<br/>audit that reasoning;<br/>look up what it cannot see"]
+    ground{"<b>ground</b> — code<br/>is the evidence real,<br/>and from the right source?"}
     gate{"<b>gate</b> — code<br/>hard rules, before money moves"}
     pay(["pay"])
     deny(["deny"])
     escalate(["escalate to a person"])
 
-    ingest --> extract --> validate --> route --> approve
+    ingest --> prescan --> extract --> cite
+    cite -->|"a citation is not<br/>in the document"| extract
+    cite -->|"still unverifiable<br/>after the limit"| escalate
+    cite -->|"every value traces back"| validate
+    validate --> route --> approve
     approve -->|"clean and under threshold"| gate
     approve -->|"over threshold<br/>or any flag"| critic
     critic --> ground
@@ -190,7 +196,7 @@ flowchart TD
     classDef code fill:#e8f0fe,stroke:#4a6fa5,color:#13243d
     classDef agent fill:#fdf3e0,stroke:#9a6400,color:#3d2f13
     classDef terminal fill:#ececea,stroke:#6b6b64,color:#1a1a18
-    class ingest,validate,route,ground,gate code
+    class ingest,prescan,validate,route,cite,ground,gate code
     class extract,approve,critic agent
     class pay,deny,escalate terminal
 ```
@@ -211,9 +217,23 @@ exists to prevent.
 **The agent never picks its own lane.** Code decides whether an invoice needs scrutiny. If a
 model could decide whether a control applied to it, it would not be a control.
 
-**Every extracted value carries the verbatim text it was read from.** That citation is what
-separates "the extractor misread this" from "the invoice is genuinely wrong" — the first is
-worth retrying, the second never will be.
+**Every extracted value carries the verbatim text it was read from, and that text is checked
+against the document.** The citation is what separates "we misread this" from "the invoice is
+genuinely wrong", and those need opposite responses: the first is worth another attempt, the
+second will return the same answer forever. Without the check both look like a number that does
+not reconcile, and the system would either retry what can never improve or refuse invoices it
+simply failed to read.
+
+Two attempts, deliberately — one cold, one carrying the specific complaint. The only thing that
+differs between attempts is the feedback, so a third would put the same complaint to the same
+model at the same temperature; "what would be different?" has no good answer, and a person
+reading the document does. An extraction that still cannot be traced is escalated rather than
+failed, which is exactly what the `misread` resolution is for.
+
+A bare figure is not a citation. `"0.00"` appears in plenty of documents and says nothing about
+where it was read from, so the minimum length is enforced in code and the prompt asks for the
+label alongside the figure. In XML or JSON a line item spans several tags, so the citation is
+the whole containing element — tested, not assumed.
 
 **The critic sees the document; the approval agent never does.** A critic given the same
 evidence and asked whether it agrees will agree. This one reads the source, so it catches the
@@ -303,10 +323,6 @@ in the commit messages — they are written to be read.
   through — in practice it rejects all of them. Whether materiality there is the agent's call
   or the gate's is an open design question, and `tests/test_acceptance.py` marks it `xfail`
   rather than hiding it.
-- **No extraction self-correction loop.** The citation-driven retry is designed and not built:
-  when a figure's citation is missing or does not match the document, that is a misread worth
-  retrying, as distinct from an invoice that is genuinely wrong. The approval critic loop is
-  built; this second one is not.
 - **Cross-format invoices are not compared field by field.** When two files claim the same
   invoice number, the pre-scan compares their stated totals by regex and flags a mismatch for
   a person. It does not extract both and reconcile them line by line, which would cost a model

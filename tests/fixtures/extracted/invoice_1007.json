@@ -35,15 +35,15 @@
     "charges": [],
     "subtotal": {
       "value": 14750.0,
-      "source_text": ",,,,,,Subtotal:,14750.00"
+      "source_text": "Subtotal:,14750.00"
     },
     "tax_amount": {
       "value": 885.0,
-      "source_text": ",,,,,,Tax (6%):,885.00"
+      "source_text": "Tax (6%):,885.00"
     },
     "total": {
       "value": 15525.0,
-      "source_text": ",,,,,,Total:,15525.00"
+      "source_text": "Total:,15525.00"
     }
   }
 }

@@ -8,35 +8,35 @@
     "due_date": "2026-02-26",
     "currency": "EUR",
     "revision": null,
-    "notes": "Net 30",
+    "notes": null,
     "line_items": [
       {
         "item": "WidgetA",
         "quantity": 4,
         "unit_price": 225.0,
         "note": null,
-        "source_text": "WidgetA 4 225.00"
+        "source_text": "<item>\n      <name>WidgetA</name>\n      <quantity>4</quantity>\n      <unit_price>225.00</unit_price>\n    </item>"
       },
       {
         "item": "WidgetB",
         "quantity": 6,
         "unit_price": 475.0,
         "note": null,
-        "source_text": "WidgetB 6 475.00"
+        "source_text": "<item>\n      <name>WidgetB</name>\n      <quantity>6</quantity>\n      <unit_price>475.00</unit_price>\n    </item>"
       }
     ],
     "charges": [],
     "subtotal": {
       "value": 3750.0,
-      "source_text": "3750.00"
+      "source_text": "<subtotal>3750.00</subtotal>"
     },
     "tax_amount": {
       "value": 375.0,
-      "source_text": "375.00"
+      "source_text": "<tax_amount>375.00</tax_amount>"
     },
     "total": {
       "value": 4125.0,
-      "source_text": "4125.00"
+      "source_text": "<total>4125.00</total>"
     }
   }
 }

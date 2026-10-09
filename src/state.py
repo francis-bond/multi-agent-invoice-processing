@@ -42,6 +42,7 @@ class InvoiceState(TypedDict, total=False):
     # --- evidence about extraction -------------------------------------------
     extraction_attempts: int
     extraction_feedback: str | None  # the specific complaint carried into a retry
+    citation_problems: list          # citations that did not check out, for the log
     prompts: dict                    # node name -> prompt sent. For the run log, not for logic.
 
     # --- what each node decided ----------------------------------------------

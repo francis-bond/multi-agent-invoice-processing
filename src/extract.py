@@ -62,12 +62,38 @@ free-text note or remark too. These decide whether a repeated invoice number is 
 or a legitimate correction, so do not drop them.
 
 CITATIONS. For every value, copy the exact text you read it from into source_text. This is checked
-against the document later, so it must appear verbatim.
+against the document afterwards, so it has to appear there verbatim. Do not tidy it, reformat it
+or summarise it.
 
+Include the label, not just the figure. "0.00" on its own is not a citation: it could have come
+from anywhere in the document and proves nothing about where you read it. '"tax_amount": 0.00'
+or "Tax (0%): $0.00" identifies the passage. Citations too short to identify a passage are
+treated as missing.
+
+In a structured document - XML, JSON - a line item is not written on one line: its name,
+quantity and price sit in separate tags or keys. Copy the WHOLE containing element or object,
+across however many lines it spans, exactly as written. "WidgetA 4 225.00" is a summary, not a
+citation, and will not be found in the document.
+
+{retry_note}
 Invoice document:
 ---
 {document}
 ---"""
+
+
+RETRY_NOTE = """
+YOUR LAST ATTEMPT DID NOT CHECK OUT
+Every value you report carries the text you read it from, and those citations are verified
+against the document afterwards. These did not appear in it:
+
+{feedback}
+
+A citation that is not in the document means either the figure is wrong or the text is. Read
+those parts of the document again and copy what is actually written. Do not simply repeat your
+previous answer, and do not invent a citation to satisfy the check - a value that genuinely is
+not stated should be reported as absent.
+"""
 
 
 def grok() -> Runnable:
@@ -75,15 +101,26 @@ def grok() -> Runnable:
     return client(ExtractedInvoice)
 
 
-def extract(document_text: str, model: Runnable | None = None) -> tuple[ExtractedInvoice, str]:
+def extract(
+    document_text: str,
+    model: Runnable | None = None,
+    feedback: str | None = None,
+) -> tuple[ExtractedInvoice, str]:
     """Extract structured fields from invoice text.
 
     `model` is the seam. Production passes nothing and gets Grok. Tests pass a stand-in so the
     suite runs without an API key, without cost, and without the model's non-determinism making
     assertions impossible.
+
+    With `feedback`, this is a second attempt carrying what was wrong with the first. Without
+    it a retry is the same question to the same model at temperature zero, and returns the
+    same answer.
     """
     model = model or grok()
-    prompt = EXTRACTION_PROMPT.format(document=document_text)
+    prompt = EXTRACTION_PROMPT.format(
+        document=document_text,
+        retry_note=RETRY_NOTE.format(feedback=feedback) if feedback else "",
+    )
     return model.invoke(prompt), prompt
 
 
