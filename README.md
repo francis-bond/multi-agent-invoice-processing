@@ -1,5 +1,7 @@
 # Multi-Agent Invoice Processing
 
+[![tests](https://github.com/francis-bond/multi-agent-invoice-processing/actions/workflows/tests.yml/badge.svg)](https://github.com/francis-bond/multi-agent-invoice-processing/actions/workflows/tests.yml)
+
 Processes vendor invoices end to end: reads whatever format the vendor sent, extracts the data
 with citations, validates it against an inventory database, routes it for approval, has that
 approval audited by a critic, and then pays or refuses with a recorded reason.
