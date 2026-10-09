@@ -45,8 +45,10 @@ Then open `.env` and put your key in `XAI_API_KEY`. Get one at
 [console.x.ai](https://console.x.ai). `.env` is gitignored and nothing else in the project
 reads a credential from disk.
 
-`.env.example` documents four optional settings with working defaults: the model, the scrutiny
-threshold, the currency we pay in, and the critic's round limit.
+`.env.example` documents every optional setting with a working default: the model, and the six
+dials in `src/policy.py` that decide how an invoice is handled — the scrutiny threshold, the
+currency we pay in, how far above the agreed price a line may be billed, and the three loop
+limits. `MAINTENANCE.md` explains what changing each one does.
 
 The inventory database is created and seeded on first run, so there is no separate setup step.
 To reset it to its baseline stock levels:
