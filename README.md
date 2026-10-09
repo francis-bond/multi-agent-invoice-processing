@@ -47,7 +47,7 @@ reads a credential from disk.
 threshold, the currency we pay in, and the critic's round limit.
 
 The inventory database is created and seeded on first run, so there is no separate setup step.
-To reset it to the stock levels the brief specifies:
+To reset it to its baseline stock levels:
 
 ```bash
 uv run python src/inventory.py
@@ -104,7 +104,7 @@ uv run python -m pytest tests/ -q
 or `ledger.db`. CI runs them on every push with no key set, so a test that reaches for the
 network fails there instead of quietly spending money.
 
-Included are acceptance tests for the five scenarios the brief names — quantity over stock,
+Included are acceptance tests for the five scenarios the sample set is built around — quantity over stock,
 an item stocked but empty, unknown items, a negative quantity, and an unknown `WidgetC`. Those
 replay recorded extractions from `tests/fixtures/extracted/`, so the question "does this still
 match what they specified?" is answered by CI. Re-record them with
@@ -201,9 +201,9 @@ in the commit messages — they are written to be read.
 ## What was cut, and why
 
 - **Human-in-the-loop approval via `interrupt()`.** LangGraph was chosen partly for its
-  checkpointing, and a real VP approval would need it. The brief specifies *simulated*
-  approval, so the checkpointing argument stops being load-bearing and building it would have
-  been architecture for a requirement that does not exist.
+  checkpointing, and a real VP approval would need it. Approval here is *simulated*, so the
+  checkpointing argument stops being load-bearing and building it would have been architecture
+  for a requirement that does not exist.
 - **A fuzzy-matching agent for item names.** Cut as process theatre. The actual problem was
   spelling variants, and `Widget A` → `WidgetA` is an exact match after a declared transform,
   not a judgment call. It is code, and it reports which stage matched.
@@ -234,7 +234,7 @@ in the commit messages — they are written to be read.
 
 ## Test data
 
-`data/invoices/` holds the 20 provided sample files, committed so the repo runs standalone.
+`data/invoices/` holds 20 sample files, committed so the repo runs standalone.
 They deliberately include broken cases: quantities over stock, unknown items, a negative
 quantity, duplicated invoice numbers, a revision of an invoice that was already paid, a
 `field,value` CSV that collapses its line items under naive parsing, an invoice in EUR, and a
@@ -244,6 +244,6 @@ Three databases, all gitignored so everyone builds their own:
 
 | | |
 |---|---|
-| `inventory.db` | the mock catalogue, seeded with the stock levels the brief specifies |
+| `inventory.db` | the mock catalogue and its stock levels |
 | `runs.db` | observability. Useful, and disposable |
 | `ledger.db` | the record of money that has left the account. Separate on purpose, so a decision to prune logs can never delete it |

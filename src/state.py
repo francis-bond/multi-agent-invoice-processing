@@ -67,8 +67,8 @@ class InvoiceState(TypedDict, total=False):
     #                      at the document.
     #
     #   rejection_reason - the system worked correctly and the answer is no. Invalid data,
-    #                      item not stocked, approval declined. Nothing is broken. The brief
-    #                      requires this be logged with reasoning.
+    #                      item not stocked, approval declined. Nothing is broken, and it is
+    #                      logged with the reasoning behind it.
     #
     # Collapsing these into one field would make "did our system break?" and "is this
     # invoice bad?" indistinguishable in the logs, which are the two questions anyone

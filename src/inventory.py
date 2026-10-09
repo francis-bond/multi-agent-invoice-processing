@@ -1,7 +1,7 @@
 """Mock inventory database.
 
-Schema and seed data are the minimum specified in the brief. The brief invites extension
-(unit price, category, vendor tables) to support richer validation.
+The schema is deliberately minimal: an item and a stock level. Extending it with unit
+prices, categories or vendor tables supports richer validation.
 """
 
 import re
@@ -105,9 +105,9 @@ def ensure(db_path: Path = DB_PATH) -> None:
     """Seed the catalogue if it is not there yet.
 
     The database is gitignored, so a fresh clone has none and the first lookup would fail
-    with "no such table". The seed data is specified by the brief rather than being ours to
-    invent, so creating it on demand loses nothing and means the documented command works on
-    a clean checkout. Existing stock levels are left alone.
+    with "no such table". The baseline catalogue is fixed reference data, so creating it on
+    demand loses nothing and means the documented command works on a clean checkout. Existing
+    stock levels are left alone.
     """
     conn = sqlite3.connect(db_path)
     try:
@@ -125,8 +125,8 @@ def lookup(item: str, db_path: Path = DB_PATH) -> int | None:
     """Stock level for an item, or None if it is not in the catalogue at all.
 
     None and 0 are different answers: "we do not stock this" versus "we stock it and have
-    none". The brief treats them as different scenarios, so the return type has to carry
-    the distinction.
+    none". Those call for different responses, so the return type has to carry the
+    distinction.
     """
     return resolve(item, db_path).stock
 

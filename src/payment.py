@@ -58,7 +58,7 @@ def gate(inv: ExtractedInvoice, flags: list[Flag], decision: str) -> str | None:
 
 
 def mock_payment(run_id: str, inv: ExtractedInvoice) -> dict:
-    """Stands in for the banking API. The brief specifies simulating this locally.
+    """Stands in for the banking API. Simulated locally.
 
     Records to the ledger immediately. If this were a real transfer the write would have to
     happen before the call, not after, so a crash mid-flight could not lose the record of a

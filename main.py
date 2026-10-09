@@ -15,8 +15,7 @@ def main() -> None:
     parser.add_argument("--invoice_path", required=True)
     args = parser.parse_args()
 
-    # A fresh clone has no catalogue; the brief specifies its contents, so seed it rather
-    # than failing on "no such table".
+    # A fresh clone has no catalogue, so seed it rather than failing on "no such table".
     inventory.ensure()
 
     result = process(args.invoice_path)

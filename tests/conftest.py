@@ -81,7 +81,7 @@ def no_ledger(monkeypatch):
 
 @pytest.fixture
 def seeded_inventory():
-    """The catalogue the brief specifies: WidgetA 15, WidgetB 10, GadgetX 5, FakeItem 0."""
+    """The baseline catalogue: WidgetA 15, WidgetB 10, GadgetX 5, FakeItem 0."""
     import inventory
     inventory.setup()
     return inventory.DB_PATH

@@ -1,8 +1,8 @@
 """Acceptance tests against the real sample invoices.
 
-The brief names five scenarios its sample set is built to exercise. This file asserts the
-system still detects each of them, so the answer to "do we match what they specified?" comes
-from CI rather than from someone querying a database by hand.
+The sample set is built around five scenarios. This file asserts the system still detects
+each of them, so "does it still handle all of these?" is answered by CI rather than by someone
+querying a database by hand.
 
 Extractions are recorded in tests/fixtures/extracted/ and replayed, so these run offline and
 free. That means they test validation, routing and the gate - not the extractor, which needs
@@ -38,8 +38,8 @@ def no_prior_payments(monkeypatch):
     monkeypatch.setattr(payment, "prior_by_number", lambda inv: [])
 
 
-# (fixture, what the brief says this invoice is for, the finding that proves we caught it)
-BRIEF_SCENARIOS = [
+# (fixture, the condition this invoice exists to exercise, the finding that proves we caught it)
+CORE_SCENARIOS = [
     ("invoice_1002", "quantity exceeds available stock", "quantity_exceeds_stock"),
     ("invoice_1003", "FakeItem: stocked but zero on hand", "item_out_of_stock"),
     ("invoice_1008", "items that do not exist in the catalogue", "item_not_found"),
@@ -48,15 +48,15 @@ BRIEF_SCENARIOS = [
 ]
 
 
-class TestTheBriefsScenarios:
-    @pytest.mark.parametrize("stem,description,expected", BRIEF_SCENARIOS,
-                             ids=[s[0] for s in BRIEF_SCENARIOS])
+class TestTheCoreScenarios:
+    @pytest.mark.parametrize("stem,description,expected", CORE_SCENARIOS,
+                             ids=[s[0] for s in CORE_SCENARIOS])
     def test_the_specified_condition_is_detected(self, stem, description, expected):
         codes = flag_codes(validate(load(stem)))
         assert expected in codes, f"{stem} ({description}) should raise {expected}, got {codes}"
 
-    @pytest.mark.parametrize("stem,description,expected", BRIEF_SCENARIOS,
-                             ids=[s[0] for s in BRIEF_SCENARIOS])
+    @pytest.mark.parametrize("stem,description,expected", CORE_SCENARIOS,
+                             ids=[s[0] for s in CORE_SCENARIOS])
     def test_a_rejected_decision_never_pays(self, stem, description, expected):
         """Detection is not the point; not paying is."""
         inv = load(stem)
@@ -89,14 +89,14 @@ class TestTheBriefsScenarios:
         inv = load(stem)
         assert gate(inv, validate(inv), "approve") is not None
 
-    @pytest.mark.parametrize("stem,_d,_e", BRIEF_SCENARIOS, ids=[s[0] for s in BRIEF_SCENARIOS])
+    @pytest.mark.parametrize("stem,_d,_e", CORE_SCENARIOS, ids=[s[0] for s in CORE_SCENARIOS])
     def test_each_takes_the_scrutiny_path(self, stem, _d, _e):
         inv = load(stem)
         assert needs_scrutiny(inv, validate(inv)) is True
 
 
 class TestCasesWeAdded:
-    """Beyond the five. The brief invites expanding the assumptions and adding cases."""
+    """Beyond the five core scenarios: cases and assumptions added while building."""
 
     def test_eur_invoice_is_refused_rather_than_paid_as_a_bare_number(self):
         """invoice_1014.xml. We extracted EUR correctly and then paid 4125.0 with no unit on
@@ -135,7 +135,7 @@ class TestCasesWeAdded:
         assert load("invoice_1002").invoice_number == "1002"
 
     def test_every_problem_is_reported_not_just_the_first(self):
-        """invoice_1009 is the brief's negative-quantity case and has five more problems.
+        """invoice_1009 is the negative-quantity case, and it has five more problems.
         Checks return flags rather than raising, so the log shows the whole picture."""
         codes = set(flag_codes(validate(load("invoice_1009"))))
         assert {"negative_quantity", "negative_total", "missing_vendor",
