@@ -141,9 +141,15 @@ def build() -> Path:
         if r["reasoning"]:
             reason = (f"<div class='block'><h4>Approval reasoning "
                       f"({esc(r['decision'])})</h4><div class='reason'>{esc(r['reasoning'])}</div></div>")
+        # The gate's reason is only worth showing when it refused a payment the review agent
+        # had APPROVED. On a rejected invoice it reads "not approved (decision was
+        # 'reject')" - true, circular, and already stated by the outcome. It was identical on
+        # all 21 rejected runs, so as a field it said nothing.
         blocked = ""
-        if r["blocked_reason"]:
-            blocked = f"<div class='block'><h4>Not paid because</h4>{esc(r['blocked_reason'])}</div>"
+        if r["blocked_reason"] and r["decision"] == "approve":
+            blocked = (f"<div class='block'><h4>Blocked by the payment gate</h4>"
+                       f"<div class='reason'>The approval review said approve. The gate "
+                       f"refused anyway: {esc(r['blocked_reason'])}</div></div>")
         escalated = ""
         if r["escalation_reason"]:
             escalated = (f"<div class='block'><h4>Escalated</h4>"
