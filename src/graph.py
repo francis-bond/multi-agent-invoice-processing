@@ -5,10 +5,9 @@ Nodes are added as they are built. Right now: ingest and extract.
 
 import time
 import uuid
-from pathlib import Path
-
 from langgraph.graph import END, START, StateGraph
 
+import documents
 from extract import extract
 from state import InvoiceState
 from validate import validate
@@ -19,11 +18,13 @@ from runlog import finish_run, start_run, write_step
 
 def ingest(state: InvoiceState) -> dict:
     """Read the document into text. No LLM: this is parsing, not judgment."""
-    path = Path(state["source_path"])
     try:
-        return {"raw_text": path.read_text()}
+        text, reader = documents.load(state["source_path"])
+        return {"raw_text": text, "source_format": reader}
+    except documents.DocumentError as exc:
+        return {"processing_error": str(exc)}
     except Exception as exc:
-        return {"processing_error": f"could not read {path}: {exc}"}
+        return {"processing_error": f"could not read {state['source_path']}: {exc}"}
 
 
 def extract_node(state: InvoiceState) -> dict:

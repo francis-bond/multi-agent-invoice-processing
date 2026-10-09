@@ -36,6 +36,7 @@ class InvoiceState(TypedDict, total=False):
 
     # --- what the document said ----------------------------------------------
     raw_text: str
+    source_format: str  # which reader decoded the file, for triage
     invoice: ExtractedInvoice | None
 
     # --- evidence about extraction -------------------------------------------
