@@ -172,42 +172,44 @@ tests tell you what you forgot to wire up.
 **Every control decision is code. Every judgment call is an agent. Nothing in between.**
 
 ```mermaid
-flowchart TD
-    ingest["<b>ingest</b> — code<br/>file to text, one reader per format"]
-    prescan["<b>prescan</b> — code<br/>what else in the inbox<br/>claims this invoice?"]
-    extract["<b>extract</b> — AGENT<br/>structured fields, each cited"]
-    cite{"<b>verify citations</b> — code<br/>is the cited text really<br/>in the document?"}
-    validate["<b>validate</b> — code<br/>stock, prices, suppliers,<br/>arithmetic, duplicates, currency"]
-    route["<b>route</b> — code<br/>sets the lane: amount or any flag"]
-    approve["<b>approve</b> — AGENT<br/>should this be paid?"]
-    critic["<b>critic</b> — AGENT + tools<br/>audit that reasoning;<br/>look up what it cannot see"]
-    ground{"<b>ground</b> — code<br/>is the evidence real,<br/>and from the right source?"}
-    gate{"<b>gate</b> — code<br/>hard rules, before money moves"}
+flowchart LR
+    ingest["<b>ingest</b><br/>file to text"]
+    prescan["<b>prescan</b><br/>what else claims<br/>this invoice?"]
+    extract["<b>extract</b> · AGENT<br/>fields, each cited"]
+    cite{"<b>citations</b><br/>really in the<br/>document?"}
+    validate["<b>validate</b><br/>stock, prices, suppliers,<br/>arithmetic, duplicates"]
+    approve["<b>approve</b> · AGENT<br/>should this be paid?"]
+    critic["<b>critic</b> · AGENT<br/>audit it, and look up<br/>what it cannot see"]
+    ground{"<b>ground</b><br/>evidence real, and<br/>from the right source?"}
+    gate{"<b>gate</b><br/>hard rules, before<br/>money moves"}
     pay(["pay"])
     deny(["deny"])
-    escalate(["escalate to a person"])
+    human(["a person decides"])
 
     ingest --> prescan --> extract --> cite
-    cite -->|"a citation is not<br/>in the document"| extract
-    cite -->|"still unverifiable<br/>after the limit"| escalate
-    cite -->|"every value traces back"| validate
-    validate --> route --> approve
-    approve -->|"clean and under threshold"| gate
-    approve -->|"over threshold<br/>or any flag"| critic
+    cite -->|"a citation is<br/>not in the document"| extract
+    cite -->|"still unverifiable"| human
+    cite -->|"every value<br/>traces back"| validate
+    validate -->|"route: amount<br/>or any flag"| approve
+    approve -->|"clean and<br/>under threshold"| gate
+    approve -->|"needs scrutiny"| critic
     critic --> ground
-    ground -->|"no objection stands"| gate
-    ground -->|"objection stands,<br/>under the round limit"| approve
-    ground -->|"objection stands,<br/>limit reached"| escalate
+    ground -->|"nothing stands"| gate
+    ground -->|"objection stands"| approve
+    ground -->|"cannot settle it"| human
     gate --> pay
     gate --> deny
 
     classDef code fill:#e8f0fe,stroke:#4a6fa5,color:#13243d
     classDef agent fill:#fdf3e0,stroke:#9a6400,color:#3d2f13
     classDef terminal fill:#ececea,stroke:#6b6b64,color:#1a1a18
-    class ingest,prescan,validate,route,cite,ground,gate code
+    class ingest,prescan,validate,cite,ground,gate code
     class extract,approve,critic agent
-    class pay,deny,escalate terminal
+    class pay,deny,human terminal
 ```
+
+Blue is code, amber is an agent. Routing is folded into the edge out of `validate`: it is one
+line deciding which lane, not a stage of its own.
 
 Thresholds, routing, quote grounding and the pre-payment gate are deterministic. An auditor
 asking why an invoice was paid gets a rule and a line number, not a model's opinion. Extraction
