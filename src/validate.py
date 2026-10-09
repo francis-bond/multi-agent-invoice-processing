@@ -17,27 +17,55 @@ CENT = 0.01
 
 
 def _existence_and_stock(inv: ExtractedInvoice) -> list[Flag]:
+    """Existence is per item. Stock is per item AGGREGATED ACROSS LINES.
+
+    invoice_1013 is why. It lists WidgetA three times - 15, then 5 at a volume discount,
+    then 2 as a replacement. Each line passes a per-line check against stock of 15. Together
+    they ask for 22. Checking lines individually misses every stock violation on an invoice
+    that splits its order across lines, which is both a common billing pattern and an obvious
+    way to slip an oversized order past a naive check.
+    """
     flags: list[Flag] = []
+
+    requested: dict[str, int] = {}
+    line_count: dict[str, int] = {}
     for li in inv.line_items:
-        stock = lookup(li.item)
+        requested[li.item] = requested.get(li.item, 0) + li.quantity
+        line_count[li.item] = line_count.get(li.item, 0) + 1
+
+    for item, qty in requested.items():
+        stock = lookup(item)
         if stock is None:
             flags.append(Flag(
                 code="item_not_found",
-                detail=f"{li.item!r} is not in inventory",
+                detail=f"{item!r} is not in inventory",
                 severity="error",
             ))
         elif stock == 0:
             flags.append(Flag(
                 code="item_out_of_stock",
-                detail=f"{li.item!r} is stocked but has zero on hand",
+                detail=f"{item!r} is stocked but has zero on hand",
                 severity="error",
             ))
-        elif li.quantity > stock:
+        elif qty > stock:
+            across = (f" across {line_count[item]} lines" if line_count[item] > 1 else "")
             flags.append(Flag(
                 code="quantity_exceeds_stock",
-                detail=f"{li.item}: requested {li.quantity}, available {stock}",
+                detail=f"{item}: requested {qty}{across}, available {stock}",
                 severity="error",
             ))
+
+    # Not an error on its own, but the approval agent should know. Splitting one item over
+    # several lines is normal for discounts and expedites, and is also how an oversized
+    # order gets made to look small.
+    for item, n in line_count.items():
+        if n > 1:
+            flags.append(Flag(
+                code="item_on_multiple_lines",
+                detail=f"{item} appears on {n} separate lines totalling {requested[item]}",
+                severity="warning",
+            ))
+
     return flags
 
 

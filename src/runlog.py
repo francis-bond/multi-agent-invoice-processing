@@ -21,6 +21,8 @@ not have.
 
 import json
 import sqlite3
+
+from pydantic import BaseModel
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -62,6 +64,18 @@ CREATE INDEX IF NOT EXISTS idx_flags_code ON flags(code);
 """
 
 
+def _encode(obj):
+    """Serialise Pydantic models properly.
+
+    json.dumps(..., default=str) silently turns a model into its repr, which looks like
+    data in the log and cannot be parsed back. Anything genuinely unserialisable still
+    falls through to str().
+    """
+    if isinstance(obj, BaseModel):
+        return obj.model_dump()
+    return str(obj)
+
+
 def _connect(db_path: Path = DB_PATH) -> sqlite3.Connection:
     conn = sqlite3.connect(db_path)
     conn.executescript(SCHEMA)
@@ -88,7 +102,7 @@ def write_step(run_id: str, seq: int, node: str, detail: dict,
     conn = _connect(db_path)
     conn.execute(
         "INSERT OR REPLACE INTO steps VALUES (?,?,?,?)",
-        (run_id, seq, node, json.dumps(detail, default=str)),
+        (run_id, seq, node, json.dumps(detail, default=_encode)),
     )
     conn.commit()
     conn.close()
