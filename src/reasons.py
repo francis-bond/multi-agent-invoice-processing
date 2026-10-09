@@ -56,6 +56,38 @@ PRIORITY = [
 ]
 
 
+# Findings that mean a person has to do something, as distinct from findings that mean the
+# vendor has to. A vendor arithmetic error is denied and finished: send it back, nothing
+# happens internally. These are different - money has already moved wrongly, or the denial
+# is one we caused and should review. They are the audit work queue.
+ACTION_REQUIRED = {
+    "revises_paid_invoice",      # we paid a version that has since been superseded
+    "possible_duplicate_billing",  # same vendor, same total, different number: a judgment call
+    "item_not_found",            # may be our catalogue, not their invoice
+}
+
+
+def category(
+    outcome: str | None,
+    processing_error: str | None,
+    flags: list[dict] | None = None,
+) -> str:
+    """Bucket a run by what it asks of a human: 'paid', 'action', or 'denied'.
+
+    'action' is the queue someone works through. A run lands there when it could not be
+    processed at all, when it never finished, or when a finding implies an internal task
+    rather than a message to the vendor.
+    """
+    if processing_error or outcome == "failed":
+        return "action"
+    if outcome is None:
+        return "action"  # died mid-flight: the log exists but the run never concluded
+    codes = {f["code"] for f in (flags or [])}
+    if codes & ACTION_REQUIRED:
+        return "action"
+    return "paid" if outcome == "paid" else "denied"
+
+
 def label(code: str) -> str:
     """Human phrase for a flag code. Unknown codes degrade to a readable form of the code."""
     return LABELS.get(code, code.replace("_", " ").capitalize())
@@ -82,7 +114,14 @@ def headline(
 
     errors = [f for f in (flags or []) if f.get("severity") == "error"]
     warnings = [f for f in (flags or []) if f.get("severity") != "error"]
-    worst = min(errors or warnings, key=lambda f: rank(f["code"]), default=None)
+    candidates = errors or warnings
+
+    # If anything put this run in the human work queue, lead with that, even when a
+    # higher-ranked finding also fired. The reason has to explain the bucket, otherwise a
+    # row reads "math inconsistency" while sitting under "needs a person" and the two
+    # halves of the same table disagree.
+    queued = [f for f in candidates if f["code"] in ACTION_REQUIRED]
+    worst = min(queued or candidates, key=lambda f: rank(f["code"]), default=None)
 
     if outcome == "paid":
         if worst:

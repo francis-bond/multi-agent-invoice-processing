@@ -15,7 +15,7 @@ import webbrowser
 from datetime import datetime, timezone
 from pathlib import Path
 
-from reasons import headline
+from reasons import category, headline
 from runlog import DB_PATH
 
 OUT = Path(__file__).parent.parent / "dashboard.html"
@@ -52,7 +52,9 @@ tr.run:hover{background:var(--bg)}
 .pill{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11.5px;font-weight:600}
 .paid{background:var(--paidbg);color:var(--paid)}
 .denied{background:var(--denybg);color:var(--deny)}
-.failed,.incomplete{background:var(--warnbg);color:var(--warn)}
+.action{background:var(--warnbg);color:var(--warn)}
+.card.act{border-color:var(--warn)}
+tr.needs td{box-shadow:inset 3px 0 var(--warn)}
 .detail td{background:var(--bg);font-size:13px;padding:14px 18px 18px}
 .detail h4{margin:0 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--dim)}
 .detail .block{margin-bottom:14px}
@@ -95,18 +97,23 @@ def build() -> Path:
     conn.row_factory = sqlite3.Row
     runs = conn.execute("SELECT * FROM runs ORDER BY started_at DESC").fetchall()
 
-    counts = {"paid": [0, 0.0], "rejected": [0, 0.0], "failed": [0, 0.0], None: [0, 0.0]}
+    # Bucket by what each run asks of a human, not by how the pipeline happened to end.
+    counts = {"paid": [0, 0.0], "denied": [0, 0.0], "action": [0, 0.0]}
+    cats = {}
     for r in runs:
-        k = r["outcome"] if r["outcome"] in counts else None
-        counts[k][0] += 1
-        counts[k][1] += r["total"] or 0
+        fl = [dict(f) for f in
+              conn.execute("SELECT code, severity FROM flags WHERE run_id=?", (r["run_id"],))]
+        cats[r["run_id"]] = c = category(r["outcome"], r["processing_error"], fl)
+        counts[c][0] += 1
+        counts[c][1] += r["total"] or 0
 
     rows = []
     for r in runs:
         rid = r["run_id"]
         outcome = r["outcome"] or "incomplete"
-        cls = {"paid": "paid", "rejected": "denied", "failed": "failed"}.get(r["outcome"], "incomplete")
-        label = {"paid": "Paid", "rejected": "Denied", "failed": "Error"}.get(r["outcome"], "Incomplete")
+        cat = cats[rid]
+        cls = {"paid": "paid", "denied": "denied", "action": "action"}[cat]
+        label = {"paid": "Paid", "denied": "Denied", "action": "Needs a person"}[cat]
         total = f"{r['total']:,.2f}" if r["total"] is not None else "-"
 
         flags = [dict(f) for f in
@@ -134,7 +141,7 @@ def build() -> Path:
             err = f"<div class='block'><h4>Processing error</h4>{esc(r['processing_error'])}</div>"
 
         rows.append(f"""
-<tr class="run" data-run="{esc(rid)}">
+<tr class="run {"needs" if cat == "action" else ""}" data-run="{esc(rid)}">
   <td><strong>{esc(r['invoice_number'] or '-')}</strong></td>
   <td>{esc(r['vendor'] or '-')}</td>
   <td class="num">{total}</td>
@@ -167,10 +174,11 @@ def build() -> Path:
 <div class="cards">
   <div class="card"><div class="n">{counts['paid'][0]}</div><div class="l">Paid</div>
       <div class="amt">{counts['paid'][1]:,.2f}</div></div>
-  <div class="card"><div class="n">{counts['rejected'][0]}</div><div class="l">Denied</div>
-      <div class="amt">{counts['rejected'][1]:,.2f}</div></div>
-  <div class="card"><div class="n">{counts['failed'][0] + counts[None][0]}</div>
-      <div class="l">Needs attention</div><div class="amt">errors and incomplete runs</div></div>
+  <div class="card"><div class="n">{counts['denied'][0]}</div><div class="l">Denied</div>
+      <div class="amt">{counts['denied'][1]:,.2f} &middot; vendor to fix</div></div>
+  <div class="card act"><div class="n">{counts['action'][0]}</div>
+      <div class="l">Needs a person</div>
+      <div class="amt">{counts['action'][1]:,.2f} &middot; internal action</div></div>
 </div>
 <main><table>
 <thead><tr><th>Invoice</th><th>Vendor</th><th class="num">Amount</th><th>Processed (local)</th>
