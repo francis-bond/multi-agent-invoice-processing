@@ -9,6 +9,7 @@ five problems, not stop at the first one - the person reading the log wants the 
 
 from models import ExtractedInvoice
 from inventory import lookup
+from ledger import prior_by_content, prior_by_number
 from state import Flag
 
 # Money comparisons need a tolerance. Floats do not reconcile exactly, and invoices are
@@ -138,5 +139,45 @@ def _sanity(inv: ExtractedInvoice) -> list[Flag]:
     return flags
 
 
+def _duplicates(inv: ExtractedInvoice) -> list[Flag]:
+    """Has this already been paid, under this number or a different one?
+
+    Neither case is an automatic rejection. A repeated invoice number with a revision marker
+    is a legitimate correction superseding the earlier bill. Without a revision marker it is
+    probably a duplicate bill. Telling those apart is judgment, so this flags and the approval
+    agent decides.
+    """
+    flags: list[Flag] = []
+
+    for prior in prior_by_number(inv):
+        if inv.revision and inv.revision != prior["revision"]:
+            flags.append(Flag(
+                code="revises_paid_invoice",
+                detail=(f"{inv.invoice_number} marked revision {inv.revision!r} was already paid "
+                        f"{prior['amount']:,.2f} on {prior['paid_at'][:10]} "
+                        f"(revision {prior['revision'] or 'none'}). This supersedes it; the earlier "
+                        f"payment may need recovering."),
+                severity="error",
+            ))
+        else:
+            flags.append(Flag(
+                code="duplicate_invoice_number",
+                detail=(f"{inv.invoice_number} from {inv.vendor} was already paid "
+                        f"{prior['amount']:,.2f} on {prior['paid_at'][:10]}"),
+                severity="error",
+            ))
+
+    for prior in prior_by_content(inv):
+        flags.append(Flag(
+            code="possible_duplicate_billing",
+            detail=(f"same vendor, amount and line items as {prior['invoice_number']} paid "
+                    f"{prior['paid_at'][:10]}. This invoice is dated {inv.issue_date}, that one "
+                    f"{prior['issue_date']}. Different numbers, identical content."),
+            severity="error",
+        ))
+
+    return flags
+
+
 def validate(inv: ExtractedInvoice) -> list[Flag]:
-    return _existence_and_stock(inv) + _arithmetic(inv) + _sanity(inv)
+    return _existence_and_stock(inv) + _arithmetic(inv) + _sanity(inv) + _duplicates(inv)

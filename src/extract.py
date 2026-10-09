@@ -44,6 +44,11 @@ the citation is how they are told apart.
 DATES. Return ISO format (YYYY-MM-DD) when the date is unambiguous. If a date cannot be read
 confidently, return it exactly as printed rather than guessing at the intended value.
 
+REVISION AND NOTES. If the document declares itself a revision, amendment or correction - a
+"revision" field, "R1", "revised", "supersedes", or similar - capture that marker. Capture any
+free-text note or remark too. These decide whether a repeated invoice number is a duplicate bill
+or a legitimate correction, so do not drop them.
+
 CITATIONS. For every value, copy the exact text you read it from into source_text. This is checked
 against the document later, so it must appear verbatim.
 

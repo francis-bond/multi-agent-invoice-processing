@@ -58,13 +58,20 @@ class ExtractedInvoice(BaseModel):
     issue_date: str | None = Field(description="Date the invoice was issued, ISO if unambiguous")
     due_date: str | None = Field(description="Date payment is due, ISO if unambiguous")
     currency: str | None = Field(description="Currency code, e.g. USD or EUR. Null if not stated.")
+    revision: str | None = Field(
+        description="Revision marker if the document declares itself a revision, e.g. 'R1'. "
+                    "Null if absent."
+    )
+    notes: str | None = Field(
+        description="Any free-text note, comment or remark on the document. Null if absent."
+    )
     line_items: list[LineItem] = Field(description="Every line item on the invoice, in order")
     subtotal: Cited = Field(description="Subtotal, with the text it was read from")
     tax_amount: Cited = Field(description="Tax amount, with the text it was read from")
     total: Cited = Field(description="Total amount, with the text it was read from")
 
     @field_validator("invoice_number", "vendor", "issue_date", "due_date", "currency",
-                     mode="after")
+                     "revision", "notes", mode="after")
     @classmethod
     def empty_string_is_missing(cls, v: str | None) -> str | None:
         """Absent and empty are different downstream. The model returns "" regardless of what

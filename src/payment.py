@@ -9,6 +9,7 @@ Kept deliberately narrow. A gate that blocks everything approval approved would 
 pointless. These are conditions that are never legitimate, not conditions that are worrying.
 """
 
+from ledger import prior_by_number, record
 from models import ExtractedInvoice
 from state import Flag
 
@@ -30,6 +31,14 @@ def gate(inv: ExtractedInvoice, flags: list[Flag], decision: str) -> str | None:
     if any(li.quantity < 0 for li in inv.line_items):
         return "a line item has a negative quantity"
 
+    # Last line of defence. Everything upstream that decides is an LLM; this is deterministic
+    # and consults the ledger rather than trusting that nothing earlier missed it.
+    already = prior_by_number(inv)
+    if already:
+        p = already[0]
+        return (f"{inv.invoice_number} was already paid {p['amount']:,.2f} on "
+                f"{p['paid_at'][:10]}; refusing to pay it twice")
+
     # The amount paid must equal the amount approved. Guards against a value drifting
     # between the decision and the transfer.
     computed = sum(li.quantity * li.unit_price for li in inv.line_items)
@@ -40,7 +49,15 @@ def gate(inv: ExtractedInvoice, flags: list[Flag], decision: str) -> str | None:
     return None
 
 
-def mock_payment(vendor: str, amount: float) -> dict:
-    """Stands in for the banking API. The brief specifies simulating this locally."""
+def mock_payment(run_id: str, inv: ExtractedInvoice) -> dict:
+    """Stands in for the banking API. The brief specifies simulating this locally.
+
+    Records to the ledger immediately. If this were a real transfer the write would have to
+    happen before the call, not after, so a crash mid-flight could not lose the record of a
+    payment that had already gone out.
+    """
+    amount = inv.total.value
+    vendor = inv.vendor or "(unknown vendor)"
+    record(run_id, inv)
     print(f"  >> PAID {amount:,.2f} to {vendor}")
     return {"status": "success", "vendor": vendor, "amount": amount}

@@ -80,7 +80,7 @@ def payment_node(state: InvoiceState) -> dict:
     blocked = gate(inv, state.get("flags", []), state.get("approval_decision", "reject"))
     if blocked:
         return {"rejection_reason": blocked}
-    return {"payment_result": mock_payment(inv.vendor or "(unknown vendor)", inv.total.value)}
+    return {"payment_result": mock_payment(state["run_id"], inv)}
 
 
 def build_graph():
