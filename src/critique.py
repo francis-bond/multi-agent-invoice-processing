@@ -119,13 +119,24 @@ def _llm() -> Runnable:
 
 
 def _normalise(text: str) -> str:
-    """Collapse whitespace and case so a quote survives reformatting.
+    """Reduce a quote to the tokens that carry meaning, so honest reformatting still matches.
 
-    Models reflow whitespace when copying out of a document. Requiring a byte-exact match
-    would reject honest quotes, which would silently disable the whole grounding check.
-    Punctuation and digits are left alone: those are the part that has to be right.
+    Models reflow text when copying out of a document, and a byte-exact match would reject
+    honest quotes - which would silently disable the whole grounding check rather than
+    loosening it. That failure was real: a critic quoting three rows of a CSV joined them
+    with commas where the document had newlines, and a verifiable quote was discarded as
+    unsupported. Three of the sample invoices are CSV, so strict matching disabled the
+    critic on a fifth of the corpus.
+
+    Separators are therefore collapsed: whitespace, commas, colons, pipes and the like all
+    become a single space. Word characters and decimal points survive, because the figures
+    are the part that has to be right - "14750.00" must not be allowed to match "14750.99".
+
+    The looser match does make a fabricated quote marginally easier to pass. That is the
+    correct side to err on: a quote still has to reproduce the document's actual words and
+    numbers in order, and the minimum length below stops a fragment matching anything.
     """
-    return re.sub(r"\s+", " ", text).casefold().strip()
+    return re.sub(r"[^\w.]+", " ", text).casefold().strip()
 
 
 def ground(critique: Critique, document: str) -> tuple[list[Objection], list[Objection]]:
