@@ -12,15 +12,18 @@ delays.
 Invoices arrive in whatever format the vendor sends — PDF, CSV, JSON, XML, plain text — with typos,
 missing fields, impossible quantities, and the occasional item that does not exist.
 
-> **Status: in progress.** Currently extraction only. This README will be rewritten when the
-> system is complete.
+> **Status: working end to end.** All six stages run, including the approval critique loop and
+> duplicate detection. Known gaps are listed at the bottom. This README is still thinner than
+> the system it describes and gets rewritten next.
 
 ## Running it
 
 ```bash
 cp .env.example .env     # add your xAI key
 uv sync
-uv run python src/extract.py data/invoices/invoice_1001.txt
+uv run python main.py --invoice_path=data/invoices/invoice_1001.txt
+uv run python src/dashboard.py     # audit view of every run, opens in a browser
+uv run python src/logs.py          # the same from the terminal
 ```
 
 ## Design

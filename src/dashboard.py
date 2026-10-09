@@ -67,6 +67,19 @@ tr.needs td{box-shadow:inset 3px 0 var(--warn)}
 .why{max-width:38ch;color:var(--ink)}
 .dim{color:var(--dim)}
 .empty{padding:40px;text-align:center;color:var(--dim)}
+.tools{display:flex;gap:12px;align-items:center;padding:16px 32px 0;flex-wrap:wrap}
+#q{flex:1 1 260px;max-width:380px;padding:8px 12px;border:1px solid var(--line);
+   border-radius:8px;background:var(--card);color:var(--ink);font-size:13.5px;
+   font-family:inherit;-webkit-appearance:none}
+#q:focus{outline:2px solid var(--warn);outline-offset:-1px}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{padding:7px 13px;border:1px solid var(--line);border-radius:20px;background:var(--card);
+      color:var(--dim);font:inherit;font-size:12.5px;cursor:pointer}
+.chip:hover{color:var(--ink)}
+.chip.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.card[data-f]{cursor:pointer}
+.card[data-f]:hover{border-color:var(--dim)}
+#count{font-size:12.5px;margin-left:auto}
 """
 
 SCRIPT = """
@@ -76,6 +89,62 @@ document.querySelectorAll('tr.run').forEach(function(r){
     if (d) d.hidden = !d.hidden;
   });
 });
+
+var box = document.getElementById('q');
+var count = document.getElementById('count');
+var rows = Array.prototype.slice.call(document.querySelectorAll('tr.run'));
+
+function activeFilter(){
+  var on = document.querySelector('.chip.on');
+  return on ? on.dataset.f : 'all';
+}
+
+function apply(){
+  var q = box.value.trim().toLowerCase();
+  var f = activeFilter();
+  var shown = 0;
+  rows.forEach(function(r){
+    var show = (f === 'all' || r.dataset.cat === f) &&
+               (!q || r.dataset.q.indexOf(q) !== -1);
+    r.style.display = show ? '' : 'none';
+    var d = document.getElementById('d-' + r.dataset.run);
+    if (d){
+      // Collapse an open detail row when its parent is filtered out, or it would be left
+      // floating under a row that is no longer there.
+      if (!show) d.hidden = true;
+      d.style.display = show ? '' : 'none';
+    }
+    if (show) shown++;
+  });
+  var none = document.getElementById('noresults');
+  if (none) none.style.display = shown ? 'none' : '';
+  count.textContent = shown === rows.length
+    ? rows.length + ' runs'
+    : shown + ' of ' + rows.length + ' runs';
+}
+
+function select(f){
+  document.querySelectorAll('.chip').forEach(function(c){
+    c.classList.toggle('on', c.dataset.f === f);
+  });
+  apply();
+}
+
+document.querySelectorAll('.chip').forEach(function(c){
+  c.addEventListener('click', function(){ select(c.dataset.f); });
+});
+// The number on a card is a set of rows; clicking it should show that set.
+document.querySelectorAll('.card[data-f]').forEach(function(c){
+  c.addEventListener('click', function(){
+    select(activeFilter() === c.dataset.f ? 'all' : c.dataset.f);
+  });
+});
+box.addEventListener('input', apply);
+// Escape clears the search rather than making anyone reach for the mouse.
+box.addEventListener('keydown', function(e){
+  if (e.key === 'Escape'){ box.value = ''; apply(); }
+});
+apply();
 """
 
 
@@ -115,6 +184,10 @@ def build() -> Path:
         cls = {"paid": "paid", "denied": "denied", "action": "action"}[cat]
         label = {"paid": "Paid", "denied": "Denied", "action": "Needs a person"}[cat]
         total = f"{r['total']:,.2f}" if r["total"] is not None else "-"
+        # What the search box matches against. Lowercased here so the filter does not have to.
+        haystack = " ".join(filter(None, [
+            r["invoice_number"], r["vendor"], Path(r["source_path"]).name,
+        ])).lower()
 
         flags = [dict(f) for f in
                  conn.execute("SELECT * FROM flags WHERE run_id=?", (rid,)).fetchall()]
@@ -159,7 +232,8 @@ def build() -> Path:
             err = f"<div class='block'><h4>Processing error</h4>{esc(r['processing_error'])}</div>"
 
         rows.append(f"""
-<tr class="run {"needs" if cat == "action" else ""}" data-run="{esc(rid)}">
+<tr class="run {"needs" if cat == "action" else ""}" data-run="{esc(rid)}"
+    data-cat="{cat}" data-q="{esc(haystack)}">
   <td><strong>{esc(r['invoice_number'] or '-')}</strong></td>
   <td>{esc(r['vendor'] or '-')}</td>
   <td class="num">{total}</td>
@@ -191,18 +265,30 @@ def build() -> Path:
     &middot; click a row for detail</div>
 </header>
 <div class="cards">
-  <div class="card"><div class="n">{counts['paid'][0]}</div><div class="l">Paid</div>
+  <div class="card" data-f="paid"><div class="n">{counts['paid'][0]}</div><div class="l">Paid</div>
       <div class="amt">{counts['paid'][1]:,.2f}</div></div>
-  <div class="card"><div class="n">{counts['denied'][0]}</div><div class="l">Denied</div>
+  <div class="card" data-f="denied"><div class="n">{counts['denied'][0]}</div><div class="l">Denied</div>
       <div class="amt">{counts['denied'][1]:,.2f} &middot; vendor to fix</div></div>
-  <div class="card act"><div class="n">{counts['action'][0]}</div>
+  <div class="card act" data-f="action"><div class="n">{counts['action'][0]}</div>
       <div class="l">Needs a person</div>
       <div class="amt">{counts['action'][1]:,.2f} &middot; internal action</div></div>
+</div>
+<div class="tools">
+  <input id="q" type="search" placeholder="Search invoice number, vendor or file" autocomplete="off">
+  <div class="chips">
+    <button class="chip on" data-f="all">All</button>
+    <button class="chip" data-f="paid">Paid</button>
+    <button class="chip" data-f="denied">Denied</button>
+    <button class="chip" data-f="action">Needs a person</button>
+  </div>
+  <span id="count" class="dim"></span>
 </div>
 <main><table>
 <thead><tr><th>Invoice</th><th>Vendor</th><th class="num">Amount</th><th>Processed (local)</th>
 <th>Result</th><th>Reason</th><th class="num">Flags</th><th class="num">Time</th></tr></thead>
-<tbody>{body}</tbody></table></main>
+<tbody>{body}
+<tr id="noresults" style="display:none"><td colspan="8" class="empty">
+  No runs match that filter.</td></tr></tbody></table></main>
 <script>{SCRIPT}</script></body></html>"""
 
     OUT.write_text(html)
