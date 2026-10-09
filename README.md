@@ -144,7 +144,7 @@ and the run that most needs looking at is usually not the one you just did.
 uv run python -m pytest tests/ -q
 ```
 
-302 tests, under a second, no API key needed. No test calls a model and none touches `runs.db`
+307 tests, under a second, no API key needed. No test calls a model and none touches `runs.db`
 or `ledger.db`. CI runs them on every push with no key set, so a test that reaches for the
 network fails there instead of quietly spending money.
 
@@ -158,6 +158,12 @@ What is asserted is never a model's judgment — that is not a testable property
 everything the surrounding code does with the judgment: which approval lane an invoice takes,
 whether an objection is grounded well enough to force a revision, when the critic loop stops,
 and what survives into the final state.
+
+## Adapting it
+
+`MAINTENANCE.md` covers where to add products and prices, where the approved supplier list
+lives, which dials change the scrutiny rules, and how to add a new validation rule so the
+tests tell you what you forgot to wire up.
 
 ## Design
 

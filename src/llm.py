@@ -22,6 +22,10 @@ DEFAULT_MODEL = "grok-4-1-fast"
 # Transient failures - a 502, a rate limit, a dropped connection - should not end a run that
 # was otherwise fine. Three attempts with backoff.
 #
+# This one stays here rather than in policy.py: it is about the network being unreliable, not
+# about how an invoice should be handled. policy.py holds the decisions a client would want to
+# change; this is the same for everyone.
+#
 # The cost of putting this around the structured-output call rather than the raw one is that a
 # model which genuinely cannot produce the schema burns three attempts instead of one. That is
 # the better trade: at temperature 0 a schema failure is rare, while a network blip on a

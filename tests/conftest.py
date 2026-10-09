@@ -89,3 +89,20 @@ def seeded_inventory():
 
 def flag_codes(flags):
     return [f["code"] for f in flags]
+
+
+def emitted_codes() -> set[str]:
+    """Every finding code the source actually emits.
+
+    Scanned from the source rather than listed by hand, so a new finding is picked up by the
+    completeness guards without anyone remembering to register it. The guards are the reason
+    MAINTENANCE.md can promise that the tests tell you what you forgot to wire up.
+    """
+    import re
+    from pathlib import Path as _P
+
+    src = _P(__file__).parent.parent / "src"
+    codes: set[str] = set()
+    for f in src.glob("*.py"):
+        codes |= set(re.findall(r'code="([a-z_]+)"', f.read_text()))
+    return codes

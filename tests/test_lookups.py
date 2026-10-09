@@ -10,8 +10,9 @@ from conftest import make_invoice
 from critique import Critique, Objection, ground
 from ledger import record
 from lookups import ANSWERED_BY, catalogue, payment_history, required_lookup, supplier
+from conftest import emitted_codes
 from reasons import SYSTEM_FLAGS
-from validate import EVIDENCE_SOURCE
+from validate import source_of
 
 pytestmark = pytest.mark.usefixtures("seeded_inventory")
 
@@ -65,12 +66,15 @@ class TestEverySystemFindingIsAnswerable:
     def test_each_one_has_a_lookup_that_bears_on_it(self):
         """A system-derived finding with no lookup behind it can never be objected to, which
         would be a silent dead end rather than a decision."""
-        # Findings about how the system behaved are not about the invoice and are not open
-        # to objection, so they need no lookup. Using the named set rather than a prefix
-        # guess, which is what this test used to do and would have kept missing.
+        # Scanned from the source, not from the EVIDENCE_SOURCE map. Reading the map meant a
+        # new code that nobody had classified was invisible here, which is exactly the case
+        # this guard exists to catch.
+        #
+        # Findings about how the system behaved are not about the invoice and are not open to
+        # objection, so they need no lookup.
         objectionable = {
-            code for code, src in EVIDENCE_SOURCE.items()
-            if src == "system" and code not in SYSTEM_FLAGS
+            code for code in emitted_codes()
+            if source_of(code) == "system" and code not in SYSTEM_FLAGS
         }
         missing = objectionable - set(ANSWERED_BY)
         assert not missing, f"no lookup answers: {sorted(missing)}"

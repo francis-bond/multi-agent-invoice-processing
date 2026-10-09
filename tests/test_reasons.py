@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+from conftest import emitted_codes
 from reasons import (ACTION_REQUIRED, LABELS, PRIORITY, REMEDIATION, SYSTEM_FLAGS,
                      category, headline, label, remediation)
 
@@ -24,25 +25,26 @@ class TestEveryFindingHasWording:
     """A completeness guard. Adding a flag and forgetting its wording is the easy mistake,
     and the symptom is a dashboard row reading 'Quantity exceeds stock' in snake_case."""
 
-    @staticmethod
-    def emitted_codes():
-        codes = set()
-        for f in SRC.glob("*.py"):
-            codes |= set(re.findall(r'code="([a-z_]+)"', f.read_text()))
-        return codes
-
     def test_every_emitted_code_has_a_label(self):
-        missing = self.emitted_codes() - set(LABELS)
+        missing = emitted_codes() - set(LABELS)
         assert not missing, f"no human label for: {sorted(missing)}"
 
     def test_every_emitted_code_has_remediation(self):
-        missing = self.emitted_codes() - set(REMEDIATION)
+        missing = emitted_codes() - set(REMEDIATION)
         assert not missing, f"no remediation advice for: {sorted(missing)}"
 
     def test_every_invoice_finding_is_ranked(self):
         """System findings are deliberately unranked; invoice findings must be ordered."""
-        missing = self.emitted_codes() - set(PRIORITY) - SYSTEM_FLAGS
+        missing = emitted_codes() - set(PRIORITY) - SYSTEM_FLAGS
         assert not missing, f"no priority for: {sorted(missing)}"
+
+    def test_every_emitted_code_is_classified_by_evidence_source(self):
+        """Unclassified, a finding defaults to system-derived and so cannot be objected to at
+        all. That fails safe, but silently - and it also hid the missing-lookup guard below,
+        which only ever looked at codes already in the map."""
+        from validate import EVIDENCE_SOURCE
+        missing = emitted_codes() - set(EVIDENCE_SOURCE)
+        assert not missing, f"no evidence source recorded for: {sorted(missing)}"
 
     def test_an_unknown_code_degrades_readably(self):
         assert label("some_new_finding") == "Some new finding"

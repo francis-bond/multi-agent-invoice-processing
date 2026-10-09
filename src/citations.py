@@ -19,16 +19,7 @@ problem and no amount of retrying will change it.
 import re
 
 from models import ExtractedInvoice
-
-import os
-
-# Attempts in total, not retries after the first. Two means one cold attempt and one informed
-# retry, and the reasoning for stopping there is worth being able to give: the only thing that
-# differs between attempts is the feedback, so if an informed retry carrying the specific
-# complaint has not fixed it, a third attempt carries the same complaint to the same model at
-# the same temperature. "What would be different on attempt three?" has no good answer, and a
-# person reading the document does.
-MAX_EXTRACTION_ATTEMPTS = int(os.environ.get("MAX_EXTRACTION_ATTEMPTS", "2"))
+from policy import MAX_EXTRACTION_ATTEMPTS  # noqa: F401  (re-exported for callers)
 
 # Enough text to identify a passage. A citation shorter than this is not evidence of anything:
 # invoice_1009 was once cited as "0.00", which does appear in the document and says nothing

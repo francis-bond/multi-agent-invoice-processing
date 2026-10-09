@@ -32,18 +32,15 @@ from pydantic import BaseModel, Field
 import lookups
 from citations import normalise as _normalise
 from llm import chat, client
+from policy import CRITIC_MAX_TOOL_STEPS, CRITIQUE_MAX_ROUNDS
 from models import ExtractedInvoice
 from state import Flag
 from validate import source_of
 
 # How many times the approver may be sent back before the invoice goes to a person. Two
 # informed revisions that have not resolved the objection mean the system cannot settle it.
-MAX_ROUNDS = int(os.environ.get("CRITIQUE_MAX_ROUNDS", "2"))
-
-# How many rounds of lookups the critic may make before it has to write its critique. Three
-# findings is already an unusual invoice, and a critic still gathering after this many calls
-# is not converging.
-MAX_TOOL_STEPS = int(os.environ.get("CRITIC_MAX_TOOL_STEPS", "4"))
+MAX_ROUNDS = CRITIQUE_MAX_ROUNDS
+MAX_TOOL_STEPS = CRITIC_MAX_TOOL_STEPS
 
 
 class Objection(BaseModel):
