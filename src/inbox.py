@@ -191,13 +191,22 @@ def precheck(path: str | Path, directory: str | Path | None = None,
                         f"{both}; a person has to say which is real"),
                 severity="error",
             ))
-        else:
+        elif not both_totals:
+            # The totals cannot both be read, so whether these two files agree is unknown.
+            # Worth saying; the duplicate check cannot tell a second format from a second bill.
             flags.append(Flag(
                 code="sibling_file_same_number",
-                detail=(f"{s['name']} claims the same invoice number"
-                        + (" with the same total" if both_totals else "")
-                        + "; likely the same invoice in another format, so expect one of "
-                          "them to be refused as a duplicate"),
+                detail=(f"{s['name']} claims the same invoice number and a total could not be "
+                        f"read from both files, so whether they agree is unknown"),
                 severity="warning",
             ))
+        # Totals agree and neither claims to be a revision: this is one invoice submitted in
+        # two formats, and nothing needs flagging on the copy in hand. Raising a warning here
+        # made the approval agent refuse whichever copy happened to be processed first, so
+        # which format got paid came down to directory order - and the denial reason was
+        # "another file claims this number", which is not a reason to refuse anything.
+        #
+        # The second copy is caught by duplicate_invoice_number against the ledger, which is
+        # the right place for it: by then there is an actual prior payment to point at. A
+        # flag that should not affect the decision is not a flag.
     return flags

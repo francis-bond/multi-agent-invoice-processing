@@ -111,8 +111,20 @@ class TestPrecheck:
         assert flags[0]["severity"] == "warning", "this is the right file; do not block it"
         assert "withdraw the other" in flags[0]["detail"]
 
-    def test_two_formats_of_one_invoice_are_a_warning_not_an_error(self):
-        flags = precheck("data/invoices/invoice_1011.pdf")
+    def test_two_formats_of_one_invoice_raise_nothing_on_the_first_copy(self):
+        """Flagging it made the approval agent refuse whichever copy was processed first, so
+        which format got paid came down to directory order - and "another file claims this
+        number" is not a reason to refuse anything. The second copy is caught by the ledger,
+        where there is an actual prior payment to point at."""
+        assert precheck("data/invoices/invoice_1011.pdf") == []
+        assert precheck("data/invoices/invoice_1013.json") == []
+
+    def test_an_unreadable_total_on_a_twin_is_still_worth_saying(self, tmp_path):
+        """Whether they agree is unknown, and the duplicate check cannot tell a second format
+        from a second bill."""
+        (tmp_path / "a.txt").write_text("Invoice Number: INV-7701\nTotal: $100.00")
+        (tmp_path / "b.txt").write_text("Invoice Number: INV-7701\nno figure here at all")
+        flags = precheck(tmp_path / "a.txt", tmp_path)
         assert flag_codes(flags) == ["sibling_file_same_number"]
         assert flags[0]["severity"] == "warning"
 
