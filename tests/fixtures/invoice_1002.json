@@ -3,7 +3,7 @@
   "vendor": "Gadgets Co.",
   "issue_date": "2026-01-30",
   "due_date": "2026-01-30",
-  "currency": "USD",
+  "currency": null,
   "line_items": [
     {
       "item": "GadgetX",
@@ -12,8 +12,16 @@
       "source_text": "GadgetX  qty 20   @ $750 ea"
     }
   ],
-  "subtotal": null,
-  "tax_amount": null,
-  "total": 15000.0,
-  "total_source_text": "Amt: $15,000.00"
+  "subtotal": {
+    "value": null,
+    "source_text": null
+  },
+  "tax_amount": {
+    "value": null,
+    "source_text": null
+  },
+  "total": {
+    "value": 15000.0,
+    "source_text": "Amt: $15,000.00"
+  }
 }

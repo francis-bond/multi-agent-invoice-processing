@@ -36,6 +36,11 @@ MISSING VALUES. Return null, never an empty string. If the document states no cu
 null. If there is no due date, due_date is null. Absent and empty are different things and are
 handled differently downstream.
 
+SUBTOTAL, TAX AND TOTAL each have two parts: the number, and source_text, the exact text you read it
+from. If the document does not state a value at all, set BOTH to null. Do not put zero in a value
+the document never mentions - a stated "Tax: $0.00" and an absent tax line are different facts, and
+the citation is how they are told apart.
+
 DATES. Return ISO format (YYYY-MM-DD) when the date is unambiguous. If a date cannot be read
 confidently, return it exactly as printed rather than guessing at the intended value.
 

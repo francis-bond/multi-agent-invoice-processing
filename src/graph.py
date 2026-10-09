@@ -10,6 +10,7 @@ from langgraph.graph import END, START, StateGraph
 
 from extract import extract
 from state import InvoiceState
+from validate import validate
 
 
 def ingest(state: InvoiceState) -> dict:
@@ -32,13 +33,22 @@ def extract_node(state: InvoiceState) -> dict:
         return {"processing_error": f"extraction failed: {exc}"}
 
 
+def validate_node(state: InvoiceState) -> dict:
+    """Check the extracted data. No LLM: lookups, arithmetic, and rules."""
+    if state.get("processing_error") or not state.get("invoice"):
+        return {}
+    return {"flags": validate(state["invoice"])}
+
+
 def build_graph():
     g = StateGraph(InvoiceState)
     g.add_node("ingest", ingest)
     g.add_node("extract", extract_node)
+    g.add_node("validate", validate_node)
     g.add_edge(START, "ingest")
     g.add_edge("ingest", "extract")
-    g.add_edge("extract", END)
+    g.add_edge("extract", "validate")
+    g.add_edge("validate", END)
     return g.compile()
 
 

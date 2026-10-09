@@ -1,11 +1,46 @@
 """Structured output schema for invoice extraction.
 
-Every extracted value carries the text it came from. That is what lets the system
-distinguish "the extractor misread this" from "the invoice is genuinely wrong"
-when validation fails later.
+Every extracted value carries the text it was read from. That citation does two jobs:
+
+  1. Distinguishes "the extractor misread this" from "the invoice is genuinely wrong" when
+     validation fails. A quote that is not in the document means a misread, and retrying is
+     worth it. A quote that checks out means the invoice is wrong, and retrying never helps.
+
+  2. Distinguishes a stated zero from an absent value. `invoice_1001` states "Tax (0%): $0.00",
+     a real zero. `invoice_1003` states no subtotal at all. The numbers are indistinguishable;
+     the presence or absence of a citation is not.
+
+Fields are deliberately REQUIRED even where the value may be null. Making them optional was
+tried and made extraction measurably worse: on invoice_1002, where labels are abbreviated and
+misspelled, the model simply omitted vendor, invoice number and both dates rather than work
+for them. Required forces an attempt. The validators below clean up what comes back.
 """
 
 from pydantic import BaseModel, Field, field_validator
+
+
+class Cited(BaseModel):
+    """A value plus the text it came from.
+
+    `source_text` is null when the document does not state the value at all - which is a
+    different thing from the value being zero or empty.
+    """
+
+    value: float | None = Field(description="The number as written, or null if not stated")
+    source_text: str | None = Field(
+        description="Exact text this was read from, copied verbatim. Null if the document "
+                    "does not state this value anywhere."
+    )
+
+    @field_validator("source_text", mode="after")
+    @classmethod
+    def blank_is_absent(cls, v: str | None) -> str | None:
+        return v.strip() if v and v.strip() else None
+
+    @property
+    def was_stated(self) -> bool:
+        """True only if the document actually said this. A value with no citation was invented."""
+        return self.source_text is not None
 
 
 class LineItem(BaseModel):
@@ -13,44 +48,28 @@ class LineItem(BaseModel):
     quantity: int = Field(description="Quantity ordered. Negative if the invoice says negative.")
     unit_price: float = Field(description="Price per unit in the invoice's currency")
     source_text: str = Field(
-        description="The exact line from the document this item was read from, copied verbatim"
+        description="The exact line this item was read from, copied verbatim"
     )
 
 
 class ExtractedInvoice(BaseModel):
-    """Note on required fields and empty strings.
-
-    Fields are deliberately REQUIRED even though their values may be null. Making them optional was
-    tried and made extraction measurably worse: on invoice_1002, where labels are abbreviated and
-    misspelled, the model simply omitted vendor, invoice number, and both dates rather than work for
-    them. Required forces an attempt; the validator below cleans up whatever comes back.
-
-    Note on empty strings.
-
-    The prompt asks for null on missing values and the schema types them as optional, but the model
-    returns "" anyway: an empty string satisfies `anyOf: [string, null]`, so nothing in the contract
-    forbids it. A prompt is a request and a schema constrains shape, not value. Only code run after
-    the response guarantees anything, so the coercion lives here.
-    """
-
     invoice_number: str | None = Field(description="Invoice number as written, e.g. INV-1001")
     vendor: str | None = Field(description="Vendor name as written, not corrected or expanded")
-    issue_date: str | None = Field(description="Date the invoice was issued, ISO format if parseable")
-    due_date: str | None = Field(description="Date payment is due, ISO format if parseable")
+    issue_date: str | None = Field(description="Date the invoice was issued, ISO if unambiguous")
+    due_date: str | None = Field(description="Date payment is due, ISO if unambiguous")
     currency: str | None = Field(description="Currency code, e.g. USD or EUR. Null if not stated.")
     line_items: list[LineItem] = Field(description="Every line item on the invoice, in order")
-    subtotal: float | None = Field(description="Subtotal as stated on the invoice")
-    tax_amount: float | None = Field(description="Tax amount as stated on the invoice")
-    total: float | None = Field(description="Total amount as stated on the invoice")
-    total_source_text: str | None = Field(
-        description="The exact line the total was read from, copied verbatim"
-    )
+    subtotal: Cited = Field(description="Subtotal, with the text it was read from")
+    tax_amount: Cited = Field(description="Tax amount, with the text it was read from")
+    total: Cited = Field(description="Total amount, with the text it was read from")
 
     @field_validator("invoice_number", "vendor", "issue_date", "due_date", "currency",
-                     "total_source_text", mode="after")
+                     mode="after")
     @classmethod
     def empty_string_is_missing(cls, v: str | None) -> str | None:
-        """Absent and empty are different things downstream. Normalise "" and "  " to None."""
+        """Absent and empty are different downstream. The model returns "" regardless of what
+        the prompt asks for, because "" satisfies anyOf: [string, null]. A schema constrains
+        shape, not value, so the coercion has to happen here."""
         if v is None:
             return None
         return v.strip() or None

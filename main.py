@@ -21,9 +21,17 @@ def main() -> None:
 
     inv = result["invoice"]
     print(f"run {result['run_id']}  {args.invoice_path}")
-    print(f"  {inv.invoice_number}  {inv.vendor}  total={inv.total}")
+    print(f"  {inv.invoice_number}  {inv.vendor}  total={inv.total.value}")
     for li in inv.line_items:
         print(f"    {li.item} x{li.quantity} @ {li.unit_price}")
+
+    flags = result.get("flags", [])
+    if not flags:
+        print("  validation: clean")
+    else:
+        print(f"  validation: {len(flags)} flag(s)")
+        for f in flags:
+            print(f"    [{f['severity']:7}] {f['code']:24} {f['detail']}")
 
 
 if __name__ == "__main__":
