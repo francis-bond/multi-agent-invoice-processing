@@ -49,6 +49,12 @@ class InvoiceState(TypedDict, total=False):
     needs_scrutiny: bool
     approval_decision: Literal["approve", "reject"] | None
     approval_reasoning: str | None
+
+    # --- the approval critic loop --------------------------------------------
+    critique_rounds: int              # revisions requested so far, not critiques run
+    approval_feedback: str | None      # grounded objections carried into a revision
+    critiques: Annotated[list[dict], lambda a, b: a + b]  # the full argument transcript
+    escalation_reason: str | None      # set when the loop could not settle it
     payment_result: dict | None
 
     # --- how it ended ---------------------------------------------------------

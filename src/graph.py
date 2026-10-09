@@ -8,8 +8,9 @@ import uuid
 from langgraph.graph import END, START, StateGraph
 
 import documents
+from critique import MAX_ROUNDS, as_feedback, critique, ground
 from extract import extract
-from state import InvoiceState
+from state import Flag, InvoiceState
 from validate import validate
 from approve import approve, needs_scrutiny
 from payment import gate, mock_payment
@@ -61,16 +62,92 @@ def approve_node(state: InvoiceState) -> dict:
     if state.get("processing_error") or not state.get("invoice"):
         return {}
     try:
+        feedback = state.get("approval_feedback")
         d, prompt = approve(
-            state["invoice"], state.get("flags", []), state.get("needs_scrutiny", False)
+            state["invoice"], state.get("flags", []), state.get("needs_scrutiny", False),
+            feedback=feedback,
         )
+        round_no = state.get("critique_rounds", 0)
+        key = f"approve_revision_{round_no}" if feedback else "approve"
         return {
             "approval_decision": d.decision,
             "approval_reasoning": d.reasoning,
-            "prompts": {**state.get("prompts", {}), "approve": prompt},
+            "prompts": {**state.get("prompts", {}), key: prompt},
+            # Clear the complaint once it has been answered, so a later round cannot
+            # silently re-send stale feedback.
+            "approval_feedback": None,
         }
     except Exception as exc:
         return {"processing_error": f"approval failed: {exc}"}
+
+
+def critic_node(state: InvoiceState) -> dict:
+    """Agent: audit the approval reasoning against the source document.
+
+    The critic sees the document; the approver never did. That asymmetry is the whole point -
+    a critic given the same evidence and asked whether it agrees will agree.
+
+    This node only ever reports. Whether an objection is strong enough to force a revision is
+    decided by `ground()` in code, on the single deterministic question of whether the quote
+    offered as evidence actually appears in the document.
+    """
+    if state.get("processing_error") or not state.get("invoice"):
+        return {}
+    try:
+        crit, prompt = critique(
+            state["invoice"],
+            state.get("flags", []),
+            state.get("approval_decision", "reject"),
+            state.get("approval_reasoning", ""),
+            state["raw_text"],
+        )
+    except Exception as exc:
+        # A critic that cannot run must not block payment on its own: the approval still
+        # stands and the gate still applies. Record it and carry on.
+        return {"flags": [Flag(code="critic_unavailable", detail=str(exc), severity="warning")]}
+
+    supported, unsupported = ground(crit, state["raw_text"])
+    round_no = state.get("critique_rounds", 0)
+
+    record = {
+        "round": round_no,
+        "reviewed_decision": state.get("approval_decision"),
+        "reviewed_reasoning": state.get("approval_reasoning"),
+        "verified": crit.verified,
+        "grounded": [o.model_dump() for o in supported],
+        "discarded": [o.model_dump() for o in unsupported],
+    }
+    out: dict = {
+        "critiques": [record],
+        "prompts": {**state.get("prompts", {}), f"critic_{round_no}": prompt},
+    }
+
+    # An objection whose quote is not in the document is an assertion, not evidence. Keep it
+    # in the record - a critic that invents quotes is worth knowing about - but it carries no
+    # authority to send the decision back.
+    if unsupported:
+        out["flags"] = [Flag(
+            code="critique_unsupported",
+            detail=(f"the critic raised {len(unsupported)} objection(s) whose quotes do not "
+                    f"appear in the document; discarded"),
+            severity="warning",
+        )]
+
+    if not supported:
+        return out  # the reasoning held up. The decision stands.
+
+    if round_no >= MAX_ROUNDS:
+        # Informed revisions have not settled it. The system stops deciding and files the
+        # case: neither paid nor rejected, because "we could not tell" is its own answer.
+        out["escalation_reason"] = (
+            f"the approval was revised {round_no} time(s) and the critic still objects: "
+            f"{supported[0].problem}"
+        )
+        return out
+
+    out["critique_rounds"] = round_no + 1
+    out["approval_feedback"] = as_feedback(supported)
+    return out
 
 
 def payment_node(state: InvoiceState) -> dict:
@@ -84,6 +161,26 @@ def payment_node(state: InvoiceState) -> dict:
     return {"payment_result": mock_payment(state["run_id"], inv)}
 
 
+def after_approval(state: InvoiceState) -> str:
+    """Code decides whether this decision gets audited. The agent never opts out.
+
+    Only the scrutiny path is critiqued. A clean invoice under the threshold has nothing for
+    a critic to find, and running one anyway would buy latency and a transcript saying so.
+    """
+    if state.get("processing_error"):
+        return "payment"
+    return "critic" if state.get("needs_scrutiny") else "payment"
+
+
+def after_critique(state: InvoiceState) -> str:
+    """Revise, escalate, or proceed. All three are code decisions."""
+    if state.get("processing_error"):
+        return "payment"
+    if state.get("escalation_reason"):
+        return "escalate"
+    return "approve" if state.get("approval_feedback") else "payment"
+
+
 def build_graph():
     g = StateGraph(InvoiceState)
     g.add_node("ingest", ingest)
@@ -91,13 +188,17 @@ def build_graph():
     g.add_node("validate", validate_node)
     g.add_node("route", route_node)
     g.add_node("approve", approve_node)
+    g.add_node("critic", critic_node)
     g.add_node("payment", payment_node)
     g.add_edge(START, "ingest")
     g.add_edge("ingest", "extract")
     g.add_edge("extract", "validate")
     g.add_edge("validate", "route")
     g.add_edge("route", "approve")
-    g.add_edge("approve", "payment")
+    g.add_conditional_edges("approve", after_approval,
+                            {"critic": "critic", "payment": "payment"})
+    g.add_conditional_edges("critic", after_critique,
+                            {"approve": "approve", "payment": "payment", "escalate": END})
     g.add_edge("payment", END)
     return g.compile()
 

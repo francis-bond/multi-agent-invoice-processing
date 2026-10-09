@@ -38,13 +38,15 @@ CREATE TABLE IF NOT EXISTS runs (
     vendor           TEXT,
     total            REAL,
     currency         TEXT,
-    outcome          TEXT,     -- paid | rejected | failed
+    outcome          TEXT,     -- paid | rejected | escalated | failed
     decision         TEXT,     -- approve | reject
     reasoning        TEXT,     -- recorded both ways, not only on rejection
     blocked_reason   TEXT,     -- why the gate refused, if it did
     processing_error TEXT,     -- the system failed, as opposed to the invoice being bad
     needs_scrutiny   INTEGER,
-    flag_count       INTEGER
+    flag_count       INTEGER,
+    critique_rounds  INTEGER,   -- revisions the critic forced
+    escalation_reason TEXT      -- set when approver and critic could not settle it
 );
 CREATE TABLE IF NOT EXISTS steps (
     run_id  TEXT NOT NULL,
@@ -118,6 +120,9 @@ def finish_run(state: dict, duration_ms: int, db_path: Path = DB_PATH) -> None:
         outcome = "failed"
     elif state.get("payment_result"):
         outcome = "paid"
+    elif state.get("escalation_reason"):
+        # Neither paid nor rejected. The loop could not settle it, so a person decides.
+        outcome = "escalated"
     else:
         outcome = "rejected"
 
@@ -125,7 +130,8 @@ def finish_run(state: dict, duration_ms: int, db_path: Path = DB_PATH) -> None:
     conn.execute(
         """UPDATE runs SET duration_ms=?, invoice_number=?, vendor=?, total=?, currency=?,
                            outcome=?, decision=?, reasoning=?, blocked_reason=?,
-                           processing_error=?, needs_scrutiny=?, flag_count=?
+                           processing_error=?, needs_scrutiny=?, flag_count=?,
+                           critique_rounds=?, escalation_reason=?
            WHERE run_id=?""",
         (
             duration_ms,
@@ -140,6 +146,8 @@ def finish_run(state: dict, duration_ms: int, db_path: Path = DB_PATH) -> None:
             state.get("processing_error"),
             int(bool(state.get("needs_scrutiny"))),
             len(flags),
+            state.get("critique_rounds", 0),
+            state.get("escalation_reason"),
             run_id,
         ),
     )

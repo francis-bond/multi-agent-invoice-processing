@@ -22,6 +22,8 @@ LABELS: dict[str, str] = {
     "quantity_exceeds_stock": "Quantity ordered exceeds stock on hand",
     "item_on_multiple_lines": "Same item billed on multiple lines",
     "item_matched_loosely": "Item matched only after ignoring a qualifier on its name",
+    "critique_unsupported": "The critic raised an objection it could not evidence",
+    "critic_unavailable": "The approval critic could not be run",
     # required fields
     "missing_vendor": "Missing required field: vendor",
     "missing_invoice_number": "Missing required field: invoice number",
@@ -51,6 +53,8 @@ PRIORITY = [
     "item_not_found",
     "item_on_multiple_lines",
     "item_matched_loosely",
+    "critic_unavailable",
+    "critique_unsupported",
     "no_line_items",
     "missing_vendor",
     "missing_invoice_number",
@@ -82,6 +86,8 @@ def category(
     """
     if processing_error or outcome == "failed":
         return "action"
+    if outcome == "escalated":
+        return "action"  # the whole point of escalating is that a person has to decide
     if outcome is None:
         return "action"  # died mid-flight: the log exists but the run never concluded
     codes = {f["code"] for f in (flags or [])}
@@ -105,6 +111,7 @@ def headline(
     processing_error: str | None,
     flags: list[dict] | None = None,
     decision: str | None = None,
+    escalation_reason: str | None = None,
 ) -> str:
     """One line saying why this run ended the way it did.
 
@@ -113,6 +120,9 @@ def headline(
     """
     if processing_error:
         return f"Could not process the file: {_first_clause(processing_error)}"
+
+    if outcome == "escalated" and escalation_reason:
+        return f"Unsettled after review: {_first_clause(escalation_reason)}"
 
     errors = [f for f in (flags or []) if f.get("severity") == "error"]
     warnings = [f for f in (flags or []) if f.get("severity") != "error"]

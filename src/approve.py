@@ -57,7 +57,7 @@ You are not deciding whether this invoice required review. That was already dete
 before it reached you. You are deciding whether it should be paid.
 
 {scrutiny_note}
-
+{revision_note}
 INVOICE
   Vendor:   {vendor}
   Number:   {number}
@@ -72,6 +72,19 @@ VALIDATION FINDINGS
 {flags}
 
 Give a decision and the reasoning behind it."""
+
+REVISION_NOTE = """
+YOUR PREVIOUS DECISION WAS CHALLENGED
+A colleague audited it against the source document, which you have not seen. Each objection
+below quotes that document, and the quote has been verified to appear in it. These are facts
+about the document, not opinions.
+
+{feedback}
+
+Decide again. Where an objection is correct, change your decision or your reasoning to match
+it. Where you still believe your original call was right, say explicitly why the objection
+does not change it. Do not simply repeat your previous reasoning.
+"""
 
 
 def _llm() -> Runnable:
@@ -88,7 +101,14 @@ def approve(
     flags: list[Flag],
     scrutiny: bool,
     model: Runnable | None = None,
+    feedback: str | None = None,
 ) -> tuple[ApprovalDecision, str]:
+    """Decide whether to pay. With `feedback`, this is a revision rather than a first look.
+
+    An uninformed retry asks the same question of the same model and gets the same answer.
+    The revision has to carry the specific complaint, which is why feedback is a parameter
+    rather than something the caller bakes into the invoice.
+    """
     model = model or _llm()
     items = "\n".join(
         f"    {li.item} x{li.quantity} @ {li.unit_price}" for li in inv.line_items
@@ -103,6 +123,7 @@ def approve(
     )
     prompt = APPROVAL_PROMPT.format(
         scrutiny_note=note,
+        revision_note=REVISION_NOTE.format(feedback=feedback) if feedback else "",
         vendor=inv.vendor or "(not stated)",
         number=inv.invoice_number or "(not stated)",
         due_date=inv.due_date or "(not stated)",

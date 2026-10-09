@@ -118,7 +118,8 @@ def build() -> Path:
 
         flags = [dict(f) for f in
                  conn.execute("SELECT * FROM flags WHERE run_id=?", (rid,)).fetchall()]
-        why = headline(r["outcome"], r["blocked_reason"], r["processing_error"], flags, r["decision"])
+        why = headline(r["outcome"], r["blocked_reason"], r["processing_error"], flags, r["decision"],
+                       r["escalation_reason"])
         fhtml = "".join(
             f"<div class='flag sev-{esc(f['severity'])}'><code>{esc(f['code'])}</code>"
             f"{esc(f['detail'])}</div>" for f in flags
@@ -143,6 +144,10 @@ def build() -> Path:
         blocked = ""
         if r["blocked_reason"]:
             blocked = f"<div class='block'><h4>Not paid because</h4>{esc(r['blocked_reason'])}</div>"
+        escalated = ""
+        if r["escalation_reason"]:
+            escalated = (f"<div class='block'><h4>Escalated</h4>"
+                         f"<div class='reason'>{esc(r['escalation_reason'])}</div></div>")
         err = ""
         if r["processing_error"]:
             err = f"<div class='block'><h4>Processing error</h4>{esc(r['processing_error'])}</div>"
@@ -161,7 +166,9 @@ def build() -> Path:
 <tr class="detail" id="d-{esc(rid)}" hidden><td colspan="8">
   <div class="block"><h4>Source</h4>{esc(r['source_path'])} &nbsp;&middot;&nbsp;
       run <code>{esc(rid)}</code> &nbsp;&middot;&nbsp;
-      scrutiny: {'yes' if r['needs_scrutiny'] else 'no'}</div>
+      scrutiny: {'yes' if r['needs_scrutiny'] else 'no'} &nbsp;&middot;&nbsp;
+      critic revisions: {r['critique_rounds'] or 0}</div>
+  {escalated}
   <div class="block"><h4>Findings ({len(flags)})</h4>{fhtml}</div>
   {reason}{blocked}{err}{stopped}
 </td></tr>""")
