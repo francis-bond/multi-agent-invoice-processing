@@ -38,6 +38,7 @@ def stub(monkeypatch):
             self.decisions = [("approve", "it reconciles")]
             self.critiques = [Critique(verified=["total checks out"], objections=[])]
             self.approve_calls = []
+            self.waivers_seen = []
             self.critic_calls = 0
             self.paid = []
 
@@ -52,10 +53,12 @@ def stub(monkeypatch):
     s = Stub()
 
     monkeypatch.setattr(graph, "extract", lambda text, model=None: (s.invoice, "extract prompt"))
-    monkeypatch.setattr(graph, "approve",
-                        lambda inv, flags, scrutiny, model=None, feedback=None: (
-                            s.approve_calls.append(feedback) or
-                            s._decision(len(s.approve_calls) - 1), "approve prompt"))
+    def fake_approve(inv, flags, scrutiny, model=None, feedback=None, waiver=None):
+        s.approve_calls.append(feedback)
+        s.waivers_seen.append(waiver)
+        return s._decision(len(s.approve_calls) - 1), "approve prompt"
+
+    monkeypatch.setattr(graph, "approve", fake_approve)
 
     def fake_critique(inv, flags, decision, reasoning, document, model=None):
         c = s._critique(s.critic_calls)

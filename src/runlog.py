@@ -46,6 +46,9 @@ CREATE TABLE IF NOT EXISTS runs (
     processing_error TEXT,     -- the system failed, as opposed to the invoice being bad
     needs_scrutiny   INTEGER,
     flag_count       INTEGER,
+    intervention_id  TEXT,      -- the recorded human decision this run carries out
+    supersedes_run   TEXT,      -- the escalated run it answers
+    corrections      TEXT,      -- what a person corrected, as applied
     critique_rounds  INTEGER,   -- revisions the critic forced
     escalation_reason TEXT      -- set when approver and critic could not settle it
 );
@@ -133,7 +136,8 @@ def finish_run(state: dict, duration_ms: int, db_path: Path = DB_PATH) -> None:
                            outcome=?, decision=?, reasoning=?, recommended_action=?,
                            blocked_reason=?,
                            processing_error=?, needs_scrutiny=?, flag_count=?,
-                           critique_rounds=?, escalation_reason=?
+                           critique_rounds=?, escalation_reason=?,
+                           intervention_id=?, supersedes_run=?, corrections=?
            WHERE run_id=?""",
         (
             duration_ms,
@@ -151,6 +155,9 @@ def finish_run(state: dict, duration_ms: int, db_path: Path = DB_PATH) -> None:
             len(flags),
             state.get("critique_rounds", 0),
             state.get("escalation_reason"),
+            state.get("intervention_id"),
+            state.get("supersedes_run"),
+            _encode(state.get("corrections_applied")) if state.get("corrections_applied") else None,
             run_id,
         ),
     )

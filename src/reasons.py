@@ -191,10 +191,15 @@ def category(
         return "action"  # the whole point of escalating is that a person has to decide
     if outcome is None:
         return "action"  # died mid-flight: the log exists but the run never concluded
+    if outcome == "paid":
+        # A paid run is finished, whatever it had to say for itself on the way. Leaving it in
+        # the work queue because of a finding would mean a person who has already dealt with
+        # an invoice still sees it waiting for them. The reason line carries the caveat.
+        return "paid"
     codes = {f["code"] for f in (flags or [])}
     if codes & ACTION_REQUIRED:
         return "action"
-    return "paid" if outcome == "paid" else "denied"
+    return "denied"
 
 
 # Findings about how the system behaved, not about the invoice. They belong in the record and
@@ -221,6 +226,7 @@ def headline(
     decision: str | None = None,
     escalation_reason: str | None = None,
     critique_rounds: int | None = None,
+    intervened_by: str | None = None,
 ) -> str:
     """One line saying why this run ended the way it did.
 
@@ -229,6 +235,9 @@ def headline(
     """
     if processing_error:
         return f"Could not process the file: {_first_clause(processing_error)}"
+
+    if intervened_by and outcome != "paid":
+        return f"Still refused after {intervened_by}'s review"
 
     if outcome == "escalated" and escalation_reason:
         return f"Unsettled after review: {_first_clause(escalation_reason)}"
@@ -246,6 +255,12 @@ def headline(
     worst = min(queued or candidates, key=lambda f: rank(f["code"]), default=None)
 
     if outcome == "paid":
+        # A payment a person authorised is the single most audit-relevant row there is. It
+        # leads, ahead of the finding they accepted and ahead of the critic, because the
+        # question an auditor arrives with is who decided.
+        if intervened_by:
+            held = f" over {label(worst['code']).lower()}" if worst else ""
+            return f"Paid on {intervened_by}'s decision{held}"
         # A payment the critic argued for is the most informative row in the table. Saying
         # "paid with a warning: the totals do not reconcile" would be true of the first
         # decision and wrong about the outcome: the critic resolved that mismatch by finding

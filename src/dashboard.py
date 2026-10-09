@@ -15,6 +15,7 @@ import webbrowser
 from datetime import datetime, timezone
 from pathlib import Path
 
+import interventions
 from reasons import category, headline, remediation
 from runlog import DB_PATH
 
@@ -53,6 +54,7 @@ tr.run:hover{background:var(--bg)}
 .paid{background:var(--paidbg);color:var(--paid)}
 .denied{background:var(--denybg);color:var(--deny)}
 .action{background:var(--warnbg);color:var(--warn)}
+tr.authorised td{box-shadow:inset 3px 0 var(--paid)}
 .card.act{border-color:var(--warn)}
 tr.needs td{box-shadow:inset 3px 0 var(--warn)}
 .detail td{background:var(--bg);font-size:13px;padding:14px 18px 18px}
@@ -194,8 +196,12 @@ def build() -> Path:
 
         flags = [dict(f) for f in
                  conn.execute("SELECT * FROM flags WHERE run_id=?", (rid,)).fetchall()]
+        # The authorisation lives in the ledger database, not the run log: a record of who
+        # approved a deviation is evidence for a payment, and pruning logs must not prune it.
+        action = interventions.get(r["intervention_id"]) if r["intervention_id"] else None
         why = headline(r["outcome"], r["blocked_reason"], r["processing_error"], flags, r["decision"],
-                       r["escalation_reason"], r["critique_rounds"])
+                       r["escalation_reason"], r["critique_rounds"],
+                       action["actor"] if action else None)
         fhtml = "".join(
             f"<div class='flag sev-{esc(f['severity'])}'><code>{esc(f['code'])}</code>"
             f"{esc(f['detail'])}</div>" for f in flags
@@ -240,6 +246,27 @@ def build() -> Path:
                 parts.append(f"<div class='step'><code>{esc(name)}</code>{esc(advice)}</div>")
             todo = ("<div class='block'><h4>What to do next</h4>" + "".join(parts) + "</div>")
 
+        authorised = ""
+        if action:
+            import json as _json
+            waived = _json.loads(action["waived"] or "[]")
+            corrections = _json.loads(action["corrections"] or "{}")
+            bits = [f"<div class='reason'><strong>{esc(action['actor'])}</strong> &middot; "
+                    f"{esc(action['resolution'])} &middot; {local(action['at'])}</div>",
+                    f"<div class='reason'>&ldquo;{esc(action['justification'])}&rdquo;</div>"]
+            if waived:
+                bits.append("<div class='step'><code>accepted as immaterial</code>"
+                            + esc(", ".join(waived)) + "</div>")
+            if corrections:
+                bits.append("<div class='step'><code>corrected</code>"
+                            + esc(", ".join(f"{k} to {v}" for k, v in corrections.items()))
+                            + "</div>")
+            if r["supersedes_run"]:
+                bits.append(f"<div class='step'><code>answers run</code>"
+                            f"{esc(r['supersedes_run'])}</div>")
+            authorised = ("<div class='block'><h4>Authorised by a person</h4>"
+                          + "".join(bits) + "</div>")
+
         escalated = ""
         if r["escalation_reason"]:
             escalated = (f"<div class='block'><h4>Escalated</h4>"
@@ -249,7 +276,7 @@ def build() -> Path:
             err = f"<div class='block'><h4>Processing error</h4>{esc(r['processing_error'])}</div>"
 
         rows.append(f"""
-<tr class="run {"needs" if cat == "action" else ""}" data-run="{esc(rid)}"
+<tr class="run {"needs" if cat == "action" else ""}{" authorised" if action else ""}" data-run="{esc(rid)}"
     data-cat="{cat}" data-q="{esc(haystack)}">
   <td><strong>{esc(r['invoice_number'] or '-')}</strong></td>
   <td>{esc(r['vendor'] or '-')}</td>
@@ -267,7 +294,7 @@ def build() -> Path:
       critic revisions: {r['critique_rounds'] or 0}</div>
   {escalated}
   <div class="block"><h4>Findings ({len(flags)})</h4>{fhtml}</div>
-  {reason}{todo}{blocked}{err}{stopped}
+  {authorised}{reason}{todo}{blocked}{err}{stopped}
 </td></tr>""")
 
     body = "".join(rows) or "<tr><td colspan='8' class='empty'>No runs recorded yet.</td></tr>"

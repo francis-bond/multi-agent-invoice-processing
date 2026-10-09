@@ -62,6 +62,12 @@ uv run python main.py --invoice_path=data/invoices/invoice_1001.txt
 That prints the extracted invoice, every validation finding, the approval decision and its
 reasoning, the critic's rounds where it ran, and what a person should do next.
 
+Or the whole directory at once, with a summary table at the end:
+
+```bash
+uv run python main.py --all
+```
+
 Try these four to see the interesting paths:
 
 ```bash
@@ -77,6 +83,44 @@ uv run python main.py --invoice_path=data/invoices/invoice_1013.json
 # a PDF whose text layer has OCR damage, read correctly anyway
 uv run python main.py --invoice_path=data/invoices/invoice_1012.pdf
 ```
+
+## When a person has to decide
+
+An invoice the system cannot settle lands in the "needs a person" queue. Recording what they
+decided is a command, and the decision is kept in the ledger database rather than the run log —
+a record of who authorised a deviation from the automated controls is evidence for a payment,
+so pruning logs must not prune it.
+
+```bash
+# we misread the document; the invoice itself is fine
+uv run python main.py --resume 2e4c30df --resolution misread     --actor "A Name" --justification "the shipping line was on the page and we dropped it"     --set total=7185.00
+
+# the findings are real and immaterial, and this person says so by name
+uv run python main.py --resume 2e4c30df --resolution accept     --actor "A Name" --justification "WidgetC is a line we started stocking last month"     --waive item_not_found
+
+# the invoice itself is wrong; the vendor has to send a corrected one
+uv run python main.py --resume 2e4c30df --resolution vendor_reissue     --actor "A Name" --justification "their total is 50.00 over and nothing explains it"
+```
+
+There are four resolutions because "wrong" means four different things: we misread the
+document, the invoice is wrong, our own records are out of date, or the findings are real and
+immaterial. What is deliberately absent is a fifth option to edit the amount and pay it. Paying
+250.00 against an invoice that says 2,500.00 means paying a figure no document authorises — the
+vendor's receivable still says 2,500.00, nothing reconciles, and they will chase the balance. A
+wrong bill is corrected by the vendor.
+
+**An intervention supplies a better input. It never supplies the verdict.** Resolving one
+produces a *new* run that goes through validation, routing, approval and the gate like any
+other invoice, linked to the run it answers. If it resumed at the gate instead, a person would
+become the way around every control in the system — and a person correcting one field can
+easily introduce a second problem, so the controls have to see the thing that actually gets
+paid. An accepted finding is shown to the approval agent as a named person's recorded decision,
+which it weighs; it does not skip the agent and it does not skip the gate.
+
+Waivers are scoped to the findings that were in front of that person. A problem appearing for
+the first time on the re-run was never seen by anyone and does not inherit someone else's
+approval. Some findings are not waivable at all: paying against a record of a prior payment is
+not a materiality judgement, and if a further payment is owed it is owed against a new document.
 
 ## The dashboard
 

@@ -8,6 +8,7 @@ import uuid
 from langgraph.graph import END, START, StateGraph
 
 import documents
+import interventions
 from critique import MAX_ROUNDS, as_feedback, critique, ground
 from extract import extract
 from state import Flag, InvoiceState
@@ -34,11 +35,20 @@ def extract_node(state: InvoiceState) -> dict:
         return {}
     try:
         invoice, prompt = extract(state["raw_text"])
-        return {
+        out = {
             "invoice": invoice,
             "extraction_attempts": state.get("extraction_attempts", 0) + 1,
             "prompts": {**state.get("prompts", {}), "extract": prompt},
         }
+        # A person's corrections go on here, not before: re-extracting the same document
+        # reproduces the same misreading. Everything from validation onward then runs against
+        # the corrected invoice, so the controls see what will actually be paid.
+        if state.get("corrections"):
+            invoice, applied = interventions.apply_corrections(
+                invoice, state["corrections"], state.get("corrected_by") or "unknown")
+            out["invoice"] = invoice
+            out["corrections_applied"] = applied
+        return out
     except Exception as exc:
         return {"processing_error": f"extraction failed: {exc}"}
 
@@ -63,9 +73,12 @@ def approve_node(state: InvoiceState) -> dict:
         return {}
     try:
         feedback = state.get("approval_feedback")
+        # A person's recorded acceptance is shown to the agent as evidence, exactly like the
+        # critic's objections are. It does not skip the agent and it does not skip the gate:
+        # the human improves the input, the controls still run.
         d, prompt = approve(
             state["invoice"], state.get("flags", []), state.get("needs_scrutiny", False),
-            feedback=feedback,
+            feedback=feedback, waiver=state.get("waiver"),
         )
         round_no = state.get("critique_rounds", 0)
         key = f"approve_revision_{round_no}" if feedback else "approve"
@@ -156,7 +169,8 @@ def payment_node(state: InvoiceState) -> dict:
     if state.get("processing_error") or not state.get("invoice"):
         return {}
     inv = state["invoice"]
-    blocked = gate(inv, state.get("flags", []), state.get("approval_decision", "reject"))
+    blocked = gate(inv, state.get("flags", []), state.get("approval_decision", "reject"),
+                   waived=state.get("waived_findings") or frozenset())
     if blocked:
         return {"rejection_reason": blocked}
     return {"payment_result": mock_payment(state["run_id"], inv)}
@@ -229,13 +243,34 @@ def build_graph():
     return g.compile()
 
 
-def process(source_path: str, log: bool = True) -> InvoiceState:
+def process(
+    source_path: str,
+    log: bool = True,
+    intervention_id: str | None = None,
+    supersedes_run: str | None = None,
+    corrections: dict | None = None,
+    corrected_by: str | None = None,
+    waived: frozenset[str] = frozenset(),
+    waiver: dict | None = None,
+) -> InvoiceState:
     """Run one invoice through the graph, recording what each node did.
 
     Logging wraps the graph rather than living inside each node: one place to forget
     instead of six. `stream` with updates gives each node's output as it lands.
     """
-    initial = {"source_path": source_path, "run_id": str(uuid.uuid4())[:8], "flags": []}
+    initial: dict = {"source_path": source_path, "run_id": str(uuid.uuid4())[:8], "flags": []}
+    if intervention_id:
+        # A resolved run is a new run. It is linked to the one it answers rather than
+        # replacing it, so the escalation, the decision a person made, and the payment that
+        # followed are all still there to read in order.
+        initial.update({
+            "intervention_id": intervention_id,
+            "supersedes_run": supersedes_run,
+            "corrections": corrections or {},
+            "corrected_by": corrected_by,
+            "waived_findings": waived,
+            "waiver": waiver,
+        })
     graph = build_graph()
 
     started = time.perf_counter()

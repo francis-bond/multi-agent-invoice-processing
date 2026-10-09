@@ -51,6 +51,17 @@ class InvoiceState(TypedDict, total=False):
     approval_reasoning: str | None
     approval_action: str | None        # what the agent says a person should do next
 
+    # --- human intervention --------------------------------------------------
+    # Set only on a re-run that a person asked for. An intervention supplies a better input;
+    # the re-run still goes through every control.
+    intervention_id: str | None
+    supersedes_run: str | None          # the escalated run this one answers
+    corrections: dict                   # field -> value, applied after extraction
+    corrected_by: str | None            # whose correction, for the citation on a fixed figure
+    corrections_applied: list           # what actually changed, for the log
+    waived_findings: frozenset          # findings a named person accepted, scoped to theirs
+    waiver: dict | None                 # who accepted them and why, shown to the agent
+
     # --- the approval critic loop --------------------------------------------
     critique_rounds: int              # revisions requested so far, not critiques run
     approval_feedback: str | None      # grounded objections carried into a revision

@@ -65,6 +65,7 @@ You are not deciding whether this invoice required review. That was already dete
 before it reached you. You are deciding whether it should be paid.
 
 {scrutiny_note}
+{waiver_note}
 {revision_note}
 INVOICE
   Vendor:   {vendor}
@@ -86,6 +87,19 @@ Give a decision, the reasoning behind it, and what a person should do next.
 Generic advice is not useful. "Contact the vendor" could be said of any invoice. Name the
 amount, the item or the party: "ask Atlas Industrial to reissue with the 50.00 discrepancy
 resolved" tells someone what to pick up."""
+
+WAIVER_NOTE = """
+A PERSON HAS ALREADY REVIEWED SOME OF THIS
+{actor} examined this invoice and accepted the following findings as immaterial:
+{waived}
+
+Their reason: "{justification}"
+
+That is a recorded decision by a named person who saw these findings, so treat those specific
+ones as settled rather than re-arguing them. It does not extend to anything else: any finding
+not in that list is still yours to weigh, and a problem they did not see is not covered by
+their decision.
+"""
 
 REVISION_NOTE = """
 YOUR PREVIOUS DECISION WAS CHALLENGED
@@ -111,6 +125,7 @@ def approve(
     scrutiny: bool,
     model: Runnable | None = None,
     feedback: str | None = None,
+    waiver: dict | None = None,
 ) -> tuple[ApprovalDecision, str]:
     """Decide whether to pay. With `feedback`, this is a revision rather than a first look.
 
@@ -138,6 +153,11 @@ def approve(
     prompt = APPROVAL_PROMPT.format(
         scrutiny_note=note,
         revision_note=REVISION_NOTE.format(feedback=feedback) if feedback else "",
+        waiver_note=WAIVER_NOTE.format(
+            actor=waiver["actor"],
+            waived="\n".join(f"  - {c}" for c in sorted(waiver["waived"])),
+            justification=waiver["justification"],
+        ) if waiver and waiver.get("waived") else "",
         vendor=inv.vendor or "(not stated)",
         number=inv.invoice_number or "(not stated)",
         due_date=inv.due_date or "(not stated)",

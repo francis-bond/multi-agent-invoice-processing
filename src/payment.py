@@ -18,8 +18,20 @@ from state import Flag
 CENT = 0.01
 
 
-def gate(inv: ExtractedInvoice, flags: list[Flag], decision: str) -> str | None:
-    """Return a reason to block, or None to let the payment proceed."""
+def gate(
+    inv: ExtractedInvoice,
+    flags: list[Flag],
+    decision: str,
+    waived: frozenset[str] = frozenset(),
+) -> str | None:
+    """Return a reason to block, or None to let the payment proceed.
+
+    `waived` is the set of findings a named person accepted, with a justification, in a
+    recorded intervention. It is scoped to the findings that were actually in front of them:
+    a problem appearing for the first time on a re-run was never seen by anyone and does not
+    inherit someone else's approval. The absolutes below are never waivable at all, so this
+    cannot be used to authorise paying twice.
+    """
 
     if decision != "approve":
         return f"not approved (decision was {decision!r})"
@@ -57,6 +69,7 @@ def gate(inv: ExtractedInvoice, flags: list[Flag], decision: str) -> str | None:
     system_errors = [
         f for f in flags
         if f["severity"] == "error" and source_of(f["code"]) == "system"
+        and f["code"] not in waived
     ]
     if system_errors:
         first = system_errors[0]
