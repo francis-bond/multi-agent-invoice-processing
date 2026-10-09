@@ -8,6 +8,7 @@ five problems, not stop at the first one - the person reading the log wants the 
 """
 
 from models import ExtractedInvoice
+from policy import HOME_CURRENCY
 from inventory import canonical, resolve, strip_annotation
 from ledger import prior_by_content, prior_by_number
 from state import Flag
@@ -188,6 +189,27 @@ def _sanity(inv: ExtractedInvoice) -> list[Flag]:
     return flags
 
 
+def _currency(inv: ExtractedInvoice) -> list[Flag]:
+    """An invoice in a currency we cannot pay.
+
+    A stated currency other than ours is not a defect in the invoice - it is a gap in what
+    this system can do. There is no exchange rate source here, so the amount owed cannot be
+    determined, and a hardcoded rate would be a fabricated number in a payments record.
+
+    An invoice that states no currency at all is taken as HOME_CURRENCY. Most of the sample
+    set states none, and treating silence as foreign would flag almost everything.
+    """
+    if inv.currency and inv.currency.upper() != HOME_CURRENCY:
+        return [Flag(
+            code="foreign_currency",
+            detail=(f"invoice is denominated in {inv.currency.upper()}, not "
+                    f"{HOME_CURRENCY}; no exchange rate source is configured so the amount "
+                    f"owed cannot be determined"),
+            severity="error",
+        )]
+    return []
+
+
 def _duplicates(inv: ExtractedInvoice) -> list[Flag]:
     """Has this already been paid, under this number or a different one?
 
@@ -229,4 +251,5 @@ def _duplicates(inv: ExtractedInvoice) -> list[Flag]:
 
 
 def validate(inv: ExtractedInvoice) -> list[Flag]:
-    return _existence_and_stock(inv) + _arithmetic(inv) + _sanity(inv) + _duplicates(inv)
+    return (_existence_and_stock(inv) + _arithmetic(inv) + _sanity(inv)
+            + _currency(inv) + _duplicates(inv))

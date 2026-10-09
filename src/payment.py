@@ -11,6 +11,7 @@ pointless. These are conditions that are never legitimate, not conditions that a
 
 from ledger import prior_by_number, record
 from models import ExtractedInvoice
+from policy import HOME_CURRENCY
 from state import Flag
 
 CENT = 0.01
@@ -24,6 +25,13 @@ def gate(inv: ExtractedInvoice, flags: list[Flag], decision: str) -> str | None:
 
     if not inv.total.was_stated:
         return "no total stated on the invoice; nothing to pay"
+
+    # No exchange rate source exists here, so the amount owed in our currency is unknown. A
+    # hardcoded rate would put a fabricated number into a payments record, and the rate date
+    # and who bears the spread are treasury decisions, not ours to assume.
+    if inv.currency and inv.currency.upper() != HOME_CURRENCY:
+        return (f"invoice is in {inv.currency.upper()} and we pay in {HOME_CURRENCY}; "
+                f"no exchange rate is configured, so a person has to price this")
 
     if inv.total.value <= 0:
         return f"total is {inv.total.value}; payments must be positive"
@@ -58,6 +66,7 @@ def mock_payment(run_id: str, inv: ExtractedInvoice) -> dict:
     """
     amount = inv.total.value
     vendor = inv.vendor or "(unknown vendor)"
+    currency = (inv.currency or HOME_CURRENCY).upper()
     record(run_id, inv)
-    print(f"  >> PAID {amount:,.2f} to {vendor}")
-    return {"status": "success", "vendor": vendor, "amount": amount}
+    print(f"  >> PAID {amount:,.2f} {currency} to {vendor}")
+    return {"status": "success", "vendor": vendor, "amount": amount, "currency": currency}

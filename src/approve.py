@@ -15,9 +15,8 @@ from langchain_xai import ChatXAI
 from pydantic import BaseModel, Field
 
 from models import ExtractedInvoice
+from policy import HOME_CURRENCY, SCRUTINY_THRESHOLD
 from state import Flag
-
-SCRUTINY_THRESHOLD = float(os.environ.get("SCRUTINY_THRESHOLD", "10000"))
 
 
 def needs_scrutiny(inv: ExtractedInvoice, flags: list[Flag]) -> bool:
@@ -26,6 +25,12 @@ def needs_scrutiny(inv: ExtractedInvoice, flags: list[Flag]) -> bool:
     The flags matter as much as the amount: a $3,000 invoice with a negative quantity and no
     vendor deserves the careful path more than a clean $11,000 one does.
     """
+    # The threshold is denominated in HOME_CURRENCY, so comparing a foreign total against it
+    # compares different units. A foreign-currency invoice always takes the careful path
+    # instead: we cannot tell whether it is above or below the limit.
+    foreign = bool(inv.currency) and inv.currency.upper() != HOME_CURRENCY
+    if foreign:
+        return True
     over_threshold = inv.total.was_stated and inv.total.value > SCRUTINY_THRESHOLD
     return over_threshold or bool(flags)
 
@@ -73,7 +78,7 @@ INVOICE
 {extras}
   Subtotal: {subtotal}
   Tax:      {tax}
-  Total:    {total}
+  Total:    {total} {currency}
 
 VALIDATION FINDINGS
 {flags}
@@ -146,6 +151,7 @@ def approve(
         subtotal=inv.subtotal.value if inv.subtotal.was_stated else "(not stated)",
         tax=inv.tax_amount.value if inv.tax_amount.was_stated else "(not stated)",
         total=inv.total.value if inv.total.was_stated else "(not stated)",
+        currency=inv.currency or f"({HOME_CURRENCY} assumed, none stated)",
         items=items,
         extras=extras,
         flags=findings,

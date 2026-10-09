@@ -22,6 +22,7 @@ LABELS: dict[str, str] = {
     "quantity_exceeds_stock": "Quantity ordered exceeds stock on hand",
     "item_on_multiple_lines": "Same item billed on multiple lines",
     "item_matched_loosely": "Item matched only after ignoring a qualifier on its name",
+    "foreign_currency": "Invoice is in a currency we cannot pay",
     "critique_unsupported": "The critic raised an objection it could not evidence",
     "critic_unavailable": "The approval critic could not be run",
     # required fields
@@ -90,6 +91,9 @@ REMEDIATION: dict[str, str] = {
         "Ask the vendor to resubmit. A negative price belongs in a credit note.",
     "negative_total":
         "This is a credit, not an invoice. Route it to the credits process rather than paying it.",
+    "foreign_currency":
+        "Price this against the rate your treasury policy specifies for the relevant date, "
+        "then pay it manually. The system deliberately will not invent an exchange rate.",
     "critique_unsupported":
         "No action on the invoice. The review agent raised an objection it could not evidence, "
         "which is worth noting if it recurs.",
@@ -100,8 +104,14 @@ REMEDIATION: dict[str, str] = {
 
 def remediation(flags: list[dict] | None) -> list[tuple[str, str]]:
     """What to do about each finding, worst first, de-duplicated by finding type."""
+    # Ordered the same way `headline` chooses: whatever put this run in the human queue
+    # first, then by consequence. Otherwise the headline names one finding while the advice
+    # panel underneath leads with a different one.
+    def order(f):
+        return (f["code"] not in ACTION_REQUIRED, rank(f["code"]))
+
     seen, out = set(), []
-    for f in sorted(flags or [], key=lambda f: rank(f["code"])):
+    for f in sorted(flags or [], key=order):
         code = f["code"]
         if code in seen or code not in REMEDIATION:
             continue
@@ -117,6 +127,7 @@ PRIORITY = [
     "duplicate_invoice_number",
     "possible_duplicate_billing",
     "negative_total",
+    "foreign_currency",
     "negative_quantity",
     "negative_unit_price",
     "zero_quantity",
@@ -141,6 +152,7 @@ PRIORITY = [
 # happens internally. These are different - money has already moved wrongly, or the denial
 # is one we caused and should review. They are the audit work queue.
 ACTION_REQUIRED = {
+    "foreign_currency",          # needs a person to price it; the system cannot
     "revises_paid_invoice",      # we paid a version that has since been superseded
     "possible_duplicate_billing",  # same vendor, same total, different number: a judgment call
     "item_not_found",            # may be our catalogue, not their invoice
